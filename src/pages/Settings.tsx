@@ -175,7 +175,7 @@ export default function Settings() {
 
       <h2>About</h2>
       <p className="muted">
-        Pitch Tracker — log every pitch by type, location, and result to build scouting reports
+        VeloSync — log every pitch by type, location, and result to build scouting reports
         on opposing batters and find the right pitch for each matchup.
       </p>
     </main>

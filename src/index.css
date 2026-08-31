@@ -43,8 +43,46 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--bg);
   z-index: 10;
 }
-.topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); }
+.topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.topbar .brand-word { display: inline-block; }
 .topbar nav { margin-left: auto; display: flex; gap: 14px; font-size: 0.9rem; }
+
+@media (max-width: 640px) {
+  .topbar-links { display: none; }
+}
+
+/* Bottom tab navigation (mobile primary nav) */
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: none;
+  justify-content: space-around;
+  align-items: stretch;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.bottom-nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 4px 6px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.bottom-nav-tab.active { color: var(--accent); }
+
+@media (max-width: 640px) {
+  .bottom-nav { display: flex; }
+}
 
 button, .btn {
   font: inherit;

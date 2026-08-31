@@ -315,7 +315,7 @@ export async function exportAll(): Promise<BackupFile> {
 
 export async function importAll(data: BackupFile): Promise<void> {
   if (data.app !== 'pitch-tracker' || !Array.isArray(data.pitches)) {
-    throw new Error('This file does not look like a Pitch Tracker backup.')
+    throw new Error('This file does not look like a VeloSync backup.')
   }
   await db.transaction('rw', [db.opponents, db.batters, db.pitchers, db.pitchTypes, db.games, db.atBats, db.pitches, db.settings], async () => {
     await Promise.all([

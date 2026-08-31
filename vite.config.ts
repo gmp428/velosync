@@ -9,8 +9,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Pitch Tracker',
-        short_name: 'PitchTrack',
+        name: 'VeloSync',
+        short_name: 'VeloSync',
         description: 'Softball pitch tracking and scouting',
         theme_color: '#e8eef7',
         background_color: '#e8eef7',
