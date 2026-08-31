@@ -22,7 +22,12 @@ html, body {
   color: var(--text);
 }
 
-#root { max-width: 640px; margin: 0 auto; padding: 0 12px 80px; }
+/* Bottom nav total height: 8px top pad + 22px icon + 2px gap + ~13px label line
+   + 6px bottom pad = 51px content, plus env(safe-area-inset-bottom) as extra
+   space below the content (not squeezed into it). Content padding below must
+   clear the tallest case: 51px content + up to ~34px safe-area on iPhones
+   with a home indicator = ~85px; round up to 96px for margin. */
+#root { max-width: 640px; margin: 0 auto; padding: 0 12px calc(96px + env(safe-area-inset-bottom, 0px)); }
 
 h1, h2, h3 { margin: 12px 0 8px; }
 h1 { font-size: 1.3rem; }
@@ -45,25 +50,25 @@ a { color: var(--accent); text-decoration: none; }
 }
 .topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .topbar .brand-word { display: inline-block; }
-.topbar nav { margin-left: auto; display: flex; gap: 14px; font-size: 0.9rem; }
-
-@media (max-width: 640px) {
-  .topbar-links { display: none; }
-}
-
-/* Bottom tab navigation (mobile primary nav) */
+/* Bottom tab navigation — primary nav on ALL viewport widths.
+   Content height (icon+label+padding) = 8 + 22 + 2 + ~13 + 6 = 51px.
+   The iOS home-indicator safe area is added as EXTRA bottom padding on the
+   bar itself (via env(safe-area-inset-bottom)), so the 51px of tappable
+   icon+label content always sits above the home indicator instead of being
+   squeezed into it. Total rendered bar height on an iPhone with a 34px
+   safe area is therefore 51 + 34 = 85px. */
 .bottom-nav {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 20;
-  display: none;
+  display: flex;
   justify-content: space-around;
   align-items: stretch;
   background: var(--panel);
   border-top: 1px solid var(--border);
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .bottom-nav-tab {
   flex: 1;
@@ -73,16 +78,13 @@ a { color: var(--accent); text-decoration: none; }
   justify-content: center;
   gap: 2px;
   padding: 8px 4px 6px;
+  min-height: 51px;
   color: var(--muted);
   font-size: 0.7rem;
   font-weight: 600;
   text-decoration: none;
 }
 .bottom-nav-tab.active { color: var(--accent); }
-
-@media (max-width: 640px) {
-  .bottom-nav { display: flex; }
-}
 
 button, .btn {
   font: inherit;

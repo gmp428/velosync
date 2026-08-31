@@ -10,12 +10,6 @@ export default function App() {
           <Logo size={26} />
           <span className="brand-word">VeloSync</span>
         </Link>
-        <nav className="topbar-links">
-          <Link to="/teams">Teams</Link>
-          <Link to="/pitchers">Pitchers</Link>
-          <Link to="/games">Games</Link>
-          <Link to="/settings">Settings</Link>
-        </nav>
       </header>
       <Outlet />
       <BottomNav />
