@@ -12,8 +12,7 @@ export default function App() {
     <div className={liveGame ? 'app live-game' : 'app'}>
       <header className="topbar">
         <Link to="/" className="brand" aria-label="Home">
-          <Logo size={26} />
-          <span className="brand-word">VeloSync</span>
+          <Logo size={36} />
           {isPrPreview && <span className="brand-pr">PR</span>}
         </Link>
       </header>

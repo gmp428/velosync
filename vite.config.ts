@@ -32,9 +32,8 @@ export default defineConfig({
         background_color: '#e8eef7',
         display: 'standalone',
         icons: [
-          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'vs-mark.png', sizes: '1024x1024', type: 'image/png' },
+          { src: 'vs-mark.png', sizes: '1024x1024', type: 'image/png', purpose: 'maskable' },
         ],
       },
       // Main SW scope is /velosync/; never intercept PR preview URLs.

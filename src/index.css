@@ -51,7 +51,9 @@ a { color: var(--accent); text-decoration: none; }
   z-index: 10;
 }
 .topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
-.topbar .brand-word { display: inline-block; }
+.topbar .brand img { display: block; background: #fff; border-radius: 4px; }
+.about-wordmark { display: block; width: min(100%, 320px); height: auto; background: #fff; margin: 8px 0 12px; }
+.bottom-nav-tab img { display: block; width: 22px; height: 22px; object-fit: contain; background: #fff; border-radius: 3px; }
 .topbar .brand-pr {
   font-size: 0.7rem;
   font-weight: 700;

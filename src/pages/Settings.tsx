@@ -4,6 +4,7 @@ import {
   CAPTURE_PRESETS, LIVE_CAPTURE_FLAGS, db, exportAll, getSettings, importAll, newId, now, saveSettings,
   type BackupFile, type CaptureFlags,
 } from '../db'
+import { Wordmark } from '../components/Logo'
 
 const PRESETS: Array<{ key: 'quick' | 'standard' | 'detailed'; label: string; blurb: string }> = [
   { key: 'quick', label: 'Quick', blurb: 'Fewest taps — pitch, spot, ball/strike/foul, out or hit.' },
@@ -174,8 +175,9 @@ export default function Settings() {
       </div>
 
       <h2>About</h2>
+      <Wordmark className="about-wordmark" />
       <p className="muted">
-        VeloSync — log every pitch by type, location, and result to build scouting reports
+        Log every pitch by type, location, and result to build scouting reports
         on opposing batters and find the right pitch for each matchup.
       </p>
     </main>

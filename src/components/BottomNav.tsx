@@ -4,13 +4,15 @@ import { NavLink } from 'react-router-dom'
 const ACTIVE_COLOR = 'var(--accent)'
 const INACTIVE_COLOR = 'var(--muted)'
 
-function HomeIcon({ color }: { color: string }) {
+function HomeIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M3 11 L12 4 L21 11" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 10 V20 H19 V10" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M10 20 V14 H14 V20" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <img
+      src={`${import.meta.env.BASE_URL}vs-mark.jpeg`}
+      width={22}
+      height={22}
+      alt=""
+      draggable={false}
+    />
   )
 }
 
@@ -61,7 +63,7 @@ function SettingsIcon({ color }: { color: string }) {
 }
 
 const TABS: Array<{ to: string; label: string; icon: (color: string) => ReactNode; end?: boolean }> = [
-  { to: '/', label: 'Home', end: true, icon: (c) => <HomeIcon color={c} /> },
+  { to: '/', label: 'Home', end: true, icon: () => <HomeIcon /> },
   { to: '/teams', label: 'Teams', icon: (c) => <TeamsIcon color={c} /> },
   { to: '/pitchers', label: 'Pitchers', icon: (c) => <PitchersIcon color={c} /> },
   { to: '/games', label: 'Games', icon: (c) => <GamesIcon color={c} /> },
