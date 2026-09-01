@@ -19,6 +19,10 @@ export default defineConfig({
     },
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: [
+        'logos/velosync-vs-mark.jpeg',
+        'logos/velosync-horizontal.jpeg',
+      ],
       manifest: {
         id: base,
         name: appName,
@@ -32,13 +36,23 @@ export default defineConfig({
         background_color: '#e8eef7',
         display: 'standalone',
         icons: [
-          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          {
+            src: 'logos/velosync-vs-mark.jpeg',
+            sizes: '1152x1728',
+            type: 'image/jpeg',
+            purpose: 'any',
+          },
+          {
+            src: 'logos/velosync-vs-mark.jpeg',
+            sizes: '1152x1728',
+            type: 'image/jpeg',
+            purpose: 'maskable',
+          },
         ],
       },
       // Main SW scope is /velosync/; never intercept PR preview URLs.
       workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,jpeg,jpg,woff,woff2,webmanifest}'],
         navigateFallbackDenylist: [/^\/velosync\/pr\//],
       },
     }),

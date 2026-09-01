@@ -51,7 +51,7 @@ a { color: var(--accent); text-decoration: none; }
   z-index: 10;
 }
 .topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
-.topbar .brand-word { display: inline-block; }
+.topbar .brand img { height: 40px; width: auto; display: block; }
 .topbar .brand-pr {
   font-size: 0.7rem;
   font-weight: 700;
