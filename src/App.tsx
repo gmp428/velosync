@@ -10,12 +10,14 @@ export default function App() {
 
   return (
     <div className={liveGame ? 'app live-game' : 'app'}>
-      <header className="topbar">
-        <Link to="/" className="brand" aria-label="Home">
-          <Logo />
-          {isPrPreview && <span className="brand-pr">PR</span>}
-        </Link>
-      </header>
+      {!liveGame && (
+        <header className="topbar">
+          <Link to="/" className="brand" aria-label="Home">
+            <Logo />
+            {isPrPreview && <span className="brand-pr">PR</span>}
+          </Link>
+        </header>
+      )}
       <Outlet />
       {!liveGame && <BottomNav />}
     </div>

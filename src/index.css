@@ -39,10 +39,8 @@ h3 { font-size: 0.95rem; color: var(--muted); text-transform: uppercase; letter-
 a { color: var(--accent); text-decoration: none; }
 
 .topbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
+  display: block;
+  padding: 4px 0 8px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 10px;
   position: sticky;
@@ -50,9 +48,28 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--bg);
   z-index: 10;
 }
-.topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
-.topbar .brand img { height: 40px; width: auto; display: block; }
+.topbar .brand {
+  position: relative;
+  display: block;
+  width: 100%;
+  color: inherit;
+}
+/* Official horizontal JPEG, scaled to (near) full phone width.
+   object-fit crops the JPEG's empty vertical pad; mix-blend drops the
+   white JPEG background onto the light UI. Not a redraw of the artwork. */
+.topbar .brand img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4.25 / 1;
+  object-fit: cover;
+  object-position: center;
+  mix-blend-mode: multiply;
+}
 .topbar .brand-pr {
+  position: absolute;
+  top: 8px;
+  right: 0;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
