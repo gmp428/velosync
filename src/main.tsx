@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createHashRouter, RouterProvider } from 'react-router-dom'
 import './index.css'
-import App from './App'
+import App, { LiveGameLayout } from './App'
 import Home from './pages/Home'
 import Teams from './pages/Teams'
 import Roster from './pages/Roster'
@@ -17,20 +17,29 @@ import Settings from './pages/Settings'
 
 const router = createHashRouter([
   {
-    path: '/',
-    element: <App />,
     children: [
-      { index: true, element: <Home /> },
-      { path: 'teams', element: <Teams /> },
-      { path: 'opponent/:id', element: <Roster /> },
-      { path: 'pitchers', element: <Pitchers /> },
-      { path: 'pitcher/:id', element: <PitcherReport /> },
-      { path: 'new-game', element: <NewGame /> },
-      { path: 'game/:id', element: <LiveGame /> },
-      { path: 'games', element: <Games /> },
-      { path: 'games/:id', element: <GameDetail /> },
-      { path: 'batter/:id', element: <BatterReport /> },
-      { path: 'settings', element: <Settings /> },
+      {
+        element: <App />,
+        children: [
+          { index: true, element: <Home /> },
+          { path: 'teams', element: <Teams /> },
+          { path: 'opponent/:id', element: <Roster /> },
+          { path: 'pitchers', element: <Pitchers /> },
+          { path: 'pitcher/:id', element: <PitcherReport /> },
+          { path: 'new-game', element: <NewGame /> },
+          { path: 'games', element: <Games /> },
+          { path: 'games/:id', element: <GameDetail /> },
+          { path: 'batter/:id', element: <BatterReport /> },
+          { path: 'settings', element: <Settings /> },
+        ],
+      },
+      // Sibling of the list-screen shell so /#/game/:id never mounts the JPEG
+      // header, separator, or tab bar.
+      {
+        path: 'game/:id',
+        element: <LiveGameLayout />,
+        children: [{ index: true, element: <LiveGame /> }],
+      },
     ],
   },
 ])

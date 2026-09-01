@@ -28,8 +28,12 @@ html, body {
    clear the tallest case: 51px content + up to ~34px safe-area on iPhones
    with a home indicator = ~85px; round up to 96px for margin. */
 #root { max-width: 640px; margin: 0 auto; padding: 0 12px calc(96px + env(safe-area-inset-bottom, 0px)); }
-/* Live logger (/game/:id): no tab bar, so drop the reserved nav inset and sit flush. */
+/* Live logger (/game/:id): no tab bar, so drop the reserved nav inset and sit flush.
+   Safe-area stays as bottom padding on the root (and on .bottom-nav when it shows). */
 #root:has(.live-game) { padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* Belt-and-suspenders: list chrome must never paint on the logger, even if nested. */
+.live-game .topbar,
+.live-game .bottom-nav { display: none !important; }
 
 h1, h2, h3 { margin: 12px 0 8px; }
 h1 { font-size: 1.3rem; }
