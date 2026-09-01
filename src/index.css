@@ -52,6 +52,15 @@ a { color: var(--accent); text-decoration: none; }
 }
 .topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .topbar .brand-word { display: inline-block; }
+.topbar .brand-pr {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
 /* Bottom tab navigation — primary nav on ALL viewport widths.
    Content height (icon+label+padding) = 8 + 22 + 2 + ~13 + 6 = 51px.
    The iOS home-indicator safe area is added as EXTRA bottom padding on the

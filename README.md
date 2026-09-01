@@ -25,4 +25,11 @@ npm run preview    # serve the production build locally
 
 ## Deployment
 
-Pushes to `main` deploy automatically to GitHub Pages via `.github/workflows/deploy.yml`. The Vite `base` is `/velosync/` so the site is served at `/velosync/`.
+GitHub Pages (project site) via `.github/workflows/deploy.yml` and the `gh-pages` branch:
+
+- **main** → https://gmp428.github.io/velosync/ (Vite `base` `/velosync/`, PWA name `VeloSync`)
+- **PR previews** → https://gmp428.github.io/velosync/pr/{number}/ (Vite `base` `/velosync/pr/{number}/`, PWA name `VeloSync PR`)
+
+Main deploys replace root files but keep `pr/`. PR deploys only write that PR’s folder. Closing a PR removes its preview folder.
+
+Enable Pages once: **Settings → Pages → Branch: `gh-pages` / `/ (root)` → Save**.
