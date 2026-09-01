@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CAPTURE_PRESETS, db, displayName, getSettings, newId, now, pitcherArsenal, resultLabel, zoneLabel,
+  CAPTURE_PRESETS, db, displayName, getSettings, newId, now, pendingSync, pitcherArsenal, resultLabel, zoneLabel,
   type AtBatOutcome, type Batter, type InPlayOutcome, type Pitch, type PitchResult, type Zone,
 } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
@@ -82,7 +82,7 @@ export default function LiveGame() {
     if (lu.length === 0 || bootingRef.current) return
     bootingRef.current = true
     db.atBats
-      .add({ id: newId(), gameId, batterId: lu[0], pitcherId: game.currentPitcherId!, inning: game.currentInning ?? 1, startedAt: Date.now(), updatedAt: now() })
+      .add({ id: newId(), gameId, batterId: lu[0], pitcherId: game.currentPitcherId!, inning: game.currentInning ?? 1, startedAt: Date.now(), updatedAt: now(), ...pendingSync() })
       .finally(() => { bootingRef.current = false })
   }, [game?.status, atBatCount, game?.lineup, game?.currentPitcherId, gameId, roster])
 
@@ -126,9 +126,9 @@ export default function LiveGame() {
       ? [newBatterId, ...without]
       : [...without.slice(0, at), newBatterId, ...without.slice(at)]
     await db.transaction('rw', db.atBats, db.pitches, db.games, async () => {
-      await db.atBats.update(openAtBat.id, { batterId: newBatterId, updatedAt: now() })
-      await db.pitches.where('atBatId').equals(openAtBat.id).modify({ batterId: newBatterId, updatedAt: now() })
-      await db.games.update(gameId, { lineup: newLineup, updatedAt: now() })
+      await db.atBats.update(openAtBat.id, { batterId: newBatterId, updatedAt: now(), ...pendingSync() })
+      await db.pitches.where('atBatId').equals(openAtBat.id).modify({ batterId: newBatterId, updatedAt: now(), ...pendingSync() })
+      await db.games.update(gameId, { lineup: newLineup, updatedAt: now(), ...pendingSync() })
     })
     setChangingBatter(false)
   }
@@ -142,14 +142,15 @@ export default function LiveGame() {
       inning: game.currentInning ?? 1,
       startedAt: Date.now(),
       updatedAt: now(),
+      ...pendingSync(),
     })
     setSelType(null)
     setSelZone(null)
     setShowInPlay(false)
   }
 
-  const setInning = (n: number) => db.games.update(gameId, { currentInning: Math.max(1, n), updatedAt: now() })
-  const toggleHalf = () => db.games.update(gameId, { half: half === 'top' ? 'bottom' : 'top', updatedAt: now() })
+  const setInning = (n: number) => db.games.update(gameId, { currentInning: Math.max(1, n), updatedAt: now(), ...pendingSync() })
+  const toggleHalf = () => db.games.update(gameId, { half: half === 'top' ? 'bottom' : 'top', updatedAt: now(), ...pendingSync() })
 
   const commit = async (result: PitchResult, inPlay?: InPlayOutcome) => {
     if (!openAtBat || selType === null || selZone === null) return
@@ -176,9 +177,10 @@ export default function LiveGame() {
         inning: curInning,
         ts: Date.now(),
         updatedAt: now(),
+        ...pendingSync(),
       })
       if (outcome) {
-        await db.atBats.update(openAtBat.id, { outcome, updatedAt: now() })
+        await db.atBats.update(openAtBat.id, { outcome, updatedAt: now(), ...pendingSync() })
         // Inning auto-advance: once 3 outs are recorded in the current inning,
         // roll to the next one so the next at-bat is stamped with it.
         let nextInning = curInning
@@ -189,7 +191,7 @@ export default function LiveGame() {
           ).length
           if (outs >= 3) {
             nextInning = curInning + 1
-            await db.games.update(gameId, { currentInning: nextInning, updatedAt: now() })
+            await db.games.update(gameId, { currentInning: nextInning, updatedAt: now(), ...pendingSync() })
           }
         }
         // Auto-advance: open the next batter's at-bat per the lineup order.
@@ -199,7 +201,7 @@ export default function LiveGame() {
             id: newId(), gameId, batterId: nextId,
             pitcherId: game.currentPitcherId ?? openAtBat.pitcherId,
             inning: nextInning,
-            startedAt: Date.now(), updatedAt: now(),
+            startedAt: Date.now(), updatedAt: now(), ...pendingSync(),
           })
         }
       }
@@ -224,7 +226,7 @@ export default function LiveGame() {
         const n = await db.pitches.where('atBatId').equals(open.id).count()
         if (n === 0) await db.atBats.delete(open.id)
       }
-      await db.atBats.update(last.atBatId, { outcome: undefined, updatedAt: now() })
+      await db.atBats.update(last.atBatId, { outcome: undefined, updatedAt: now(), ...pendingSync() })
       await db.pitches.delete(last.id)
     })
     setShowInPlay(false)
@@ -238,7 +240,7 @@ export default function LiveGame() {
       const n = await db.pitches.where('atBatId').equals(open.id).count()
       if (n === 0) await db.atBats.delete(open.id)
     }
-    await db.games.update(gameId, { status: 'finished', updatedAt: now() })
+    await db.games.update(gameId, { status: 'finished', updatedAt: now(), ...pendingSync() })
     navigate(`/games/${gameId}`)
   }
 
@@ -259,7 +261,7 @@ export default function LiveGame() {
         <select
           style={{ width: 'auto', flex: 1 }}
           value={game.currentPitcherId ?? ''}
-          onChange={(e) => db.games.update(gameId, { currentPitcherId: e.target.value, updatedAt: now() })}
+          onChange={(e) => db.games.update(gameId, { currentPitcherId: e.target.value, updatedAt: now(), ...pendingSync() })}
         >
           {pitchers.map((p) => (
             <option key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ''}{displayName(p)}</option>
@@ -290,7 +292,7 @@ export default function LiveGame() {
           <LineupEditor
             order={order}
             batters={roster}
-            onChange={(o) => db.games.update(gameId, { lineup: o, updatedAt: now() })}
+            onChange={(o) => db.games.update(gameId, { lineup: o, updatedAt: now(), ...pendingSync() })}
           />
         </div>
       )}

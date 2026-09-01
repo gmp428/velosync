@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, defaultLineup, displayName, newId, now } from '../db'
+import { db, defaultLineup, displayName, newId, now, pendingSync } from '../db'
 
 export default function NewGame() {
   const navigate = useNavigate()
@@ -27,6 +27,7 @@ export default function NewGame() {
       currentInning: 1,
       half: 'top',
       updatedAt: now(),
+      ...pendingSync(),
     })
     navigate(`/game/${gameId}`)
   }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, newId, now } from '../db'
+import { db, displayName, newId, now, pendingSync } from '../db'
 
 export default function Roster() {
   const { id } = useParams()
@@ -28,7 +28,7 @@ export default function Roster() {
     e.preventDefault()
     const first = firstName.trim()
     if (!first) return
-    const fields = { firstName: first, lastName: lastName.trim(), number: number.trim(), bats, updatedAt: now() }
+    const fields = { firstName: first, lastName: lastName.trim(), number: number.trim(), bats, updatedAt: now(), ...pendingSync() }
     if (editingId !== null) {
       await db.batters.update(editingId, fields)
     } else {

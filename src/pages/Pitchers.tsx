@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, newId, now, pitcherArsenal } from '../db'
+import { db, displayName, newId, now, pendingSync, pitcherArsenal } from '../db'
 
 export default function Pitchers() {
   const pitchers = useLiveQuery(() => db.pitchers.toArray(), [])
@@ -49,6 +49,7 @@ export default function Pitchers() {
       notes: notes.trim(),
       pitchTypeIds: arsenal ?? [],
       updatedAt: now(),
+      ...pendingSync(),
     }
     if (editingId !== null) {
       await db.pitchers.update(editingId, record)

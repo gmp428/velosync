@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, newId, now } from '../db'
+import { db, newId, now, pendingSync } from '../db'
 
 export default function Home() {
   const opponents = useLiveQuery(() => db.opponents.toArray(), [])
@@ -13,7 +13,7 @@ export default function Home() {
     e.preventDefault()
     const trimmed = name.trim()
     if (!trimmed) return
-    await db.opponents.add({ id: newId(), name: trimmed, updatedAt: now() })
+    await db.opponents.add({ id: newId(), name: trimmed, updatedAt: now(), ...pendingSync() })
     setName('')
   }
 

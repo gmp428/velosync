@@ -8,12 +8,37 @@ import Dexie, { type EntityTable } from 'dexie'
 export const newId = (): string => crypto.randomUUID()
 export const now = (): number => Date.now()
 
+// Local-only sync stub. A later Postgres/Supabase pass can land without a rewrite.
+// Nothing is sent off-device until that exists.
+export type SyncStatus = 'pending' | 'synced' | 'error'
+
+export type SyncMeta = {
+  syncStatus: SyncStatus
+  syncedAt?: number | null
+}
+
+/** Mark a local create/edit as not-yet-synced. Cloud sync is not implemented. */
+export function pendingSync(): SyncMeta {
+  return { syncStatus: 'pending', syncedAt: null }
+}
+
+function hydrateSync<T extends object>(row: T): T & SyncMeta {
+  const r = row as T & Partial<SyncMeta>
+  return {
+    ...row,
+    syncStatus: r.syncStatus ?? 'pending',
+    syncedAt: r.syncedAt === undefined ? null : r.syncedAt,
+  }
+}
+
 // ---------- Types ----------
 
 export interface Opponent {
   id: string
   name: string
   updatedAt: number
+  syncStatus: SyncStatus
+  syncedAt?: number | null
 }
 
 export interface Batter {
@@ -26,6 +51,8 @@ export interface Batter {
   bats: 'L' | 'R'
   notes?: string
   updatedAt: number
+  syncStatus: SyncStatus
+  syncedAt?: number | null
 }
 
 export interface Pitcher {
@@ -40,6 +67,8 @@ export interface Pitcher {
   // (covers pitchers created before arsenals existed).
   pitchTypeIds?: string[]
   updatedAt: number
+  syncStatus: SyncStatus
+  syncedAt?: number | null
 }
 
 // Display "F. Last" (falls back to first name, then legacy name).
@@ -68,6 +97,8 @@ export interface PitchType {
   name: string
   abbr: string
   updatedAt: number
+  syncStatus: SyncStatus
+  syncedAt?: number | null
 }
 
 export interface Game {
@@ -81,6 +112,8 @@ export interface Game {
   currentInning?: number // advances during the game (undefined = untracked, treat as 1)
   half?: 'top' | 'bottom' // which half the opponent bats — constant for the game
   updatedAt: number
+  syncStatus: SyncStatus
+  syncedAt?: number | null
 }
 
 export type AtBatOutcome =
@@ -103,6 +136,8 @@ export interface AtBat {
   inning?: number // inning this at-bat occurred in (undefined = untracked)
   startedAt: number
   updatedAt: number
+  syncStatus: SyncStatus
+  syncedAt?: number | null
 }
 
 // Zones from the catcher's point of view.
@@ -129,6 +164,8 @@ export interface Pitch {
   inning?: number // inning this pitch was thrown in (undefined = untracked)
   ts: number
   updatedAt: number
+  syncStatus: SyncStatus
+  syncedAt?: number | null
 }
 
 // ---------- App settings (logging detail level) ----------
@@ -232,8 +269,43 @@ db.version(2).stores({
   settings: 'id',
 })
 
+// v3 adds local-only sync metadata (status + last-synced timestamp) so a later
+// server sync can land without rewriting the schema. Existing rows become pending.
+db.version(3).stores({
+  opponents: 'id, name, updatedAt, syncStatus',
+  batters: 'id, opponentId, updatedAt, syncStatus',
+  pitchers: 'id, name, updatedAt, syncStatus',
+  pitchTypes: 'id, name, updatedAt, syncStatus',
+  games: 'id, opponentId, status, updatedAt, syncStatus',
+  atBats: 'id, gameId, batterId, pitcherId, updatedAt, syncStatus',
+  pitches: 'id, gameId, atBatId, batterId, pitcherId, ts, updatedAt, syncStatus',
+}).upgrade(async (tx) => {
+  const tables = ['opponents', 'batters', 'pitchers', 'pitchTypes', 'games', 'atBats', 'pitches'] as const
+  for (const name of tables) {
+    await tx.table(name).toCollection().modify((row: Partial<SyncMeta>) => {
+      if (row.syncStatus == null) row.syncStatus = 'pending'
+      if (row.syncedAt === undefined) row.syncedAt = null
+    })
+  }
+})
+
 // Discard the legacy integer-keyed database from before the UUID switch.
 Dexie.delete('pitch-tracker').catch(() => {})
+
+const SYNC_TABLES = ['opponents', 'batters', 'pitchers', 'pitchTypes', 'games', 'atBats', 'pitches'] as const
+
+for (const name of SYNC_TABLES) {
+  const table = db.table(name)
+  table.hook('creating', (_pk, obj) => {
+    const row = obj as SyncMeta
+    if (row.syncStatus == null) row.syncStatus = 'pending'
+    if (row.syncedAt === undefined) row.syncedAt = null
+  })
+  table.hook('updating', () => ({
+    syncStatus: 'pending' as const,
+    syncedAt: null,
+  }))
+}
 
 const DEFAULT_PITCH_TYPES: Array<Pick<PitchType, 'name' | 'abbr'>> = [
   { name: 'Fastball', abbr: 'FB' },
@@ -245,7 +317,7 @@ const DEFAULT_PITCH_TYPES: Array<Pick<PitchType, 'name' | 'abbr'>> = [
 ]
 
 db.on('populate', async () => {
-  await db.pitchTypes.bulkAdd(DEFAULT_PITCH_TYPES.map((t) => ({ ...t, id: newId(), updatedAt: now() })))
+  await db.pitchTypes.bulkAdd(DEFAULT_PITCH_TYPES.map((t) => ({ ...t, id: newId(), updatedAt: now(), ...pendingSync() })))
 })
 
 // ---------- Display helpers ----------
@@ -285,7 +357,7 @@ export function outcomeLabel(o: AtBatOutcome | InPlayOutcome): string {
 
 export interface BackupFile {
   app: 'pitch-tracker'
-  version: number
+  version: number // 2 = pre-sync-meta; 3 = includes syncStatus/syncedAt
   exportedAt: string
   opponents: Opponent[]
   batters: Batter[]
@@ -300,7 +372,7 @@ export interface BackupFile {
 export async function exportAll(): Promise<BackupFile> {
   return {
     app: 'pitch-tracker',
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     opponents: await db.opponents.toArray(),
     batters: await db.batters.toArray(),
@@ -323,13 +395,13 @@ export async function importAll(data: BackupFile): Promise<void> {
       db.pitchTypes.clear(), db.games.clear(), db.atBats.clear(), db.pitches.clear(),
       db.settings.clear(),
     ])
-    await db.opponents.bulkAdd(data.opponents)
-    await db.batters.bulkAdd(data.batters)
-    await db.pitchers.bulkAdd(data.pitchers)
-    await db.pitchTypes.bulkAdd(data.pitchTypes)
-    await db.games.bulkAdd(data.games)
-    await db.atBats.bulkAdd(data.atBats)
-    await db.pitches.bulkAdd(data.pitches)
+    await db.opponents.bulkAdd(data.opponents.map(hydrateSync))
+    await db.batters.bulkAdd(data.batters.map(hydrateSync))
+    await db.pitchers.bulkAdd(data.pitchers.map(hydrateSync))
+    await db.pitchTypes.bulkAdd(data.pitchTypes.map(hydrateSync))
+    await db.games.bulkAdd(data.games.map(hydrateSync))
+    await db.atBats.bulkAdd(data.atBats.map(hydrateSync))
+    await db.pitches.bulkAdd(data.pitches.map(hydrateSync))
     // Older backups predate settings — restore the row if present, else leave
     // the store empty so getSettings() falls back to the default.
     if (data.settings?.length) await db.settings.bulkAdd(data.settings)

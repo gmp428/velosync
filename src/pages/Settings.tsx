@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CAPTURE_PRESETS, LIVE_CAPTURE_FLAGS, db, exportAll, getSettings, importAll, newId, now, saveSettings,
+  CAPTURE_PRESETS, LIVE_CAPTURE_FLAGS, db, exportAll, getSettings, importAll, newId, now, pendingSync, saveSettings,
   type BackupFile, type CaptureFlags,
 } from '../db'
 
@@ -40,13 +40,13 @@ export default function Settings() {
     e.preventDefault()
     const name = newName.trim()
     if (!name) return
-    await db.pitchTypes.add({ id: newId(), name, abbr: name.slice(0, 2).toUpperCase(), updatedAt: now() })
+    await db.pitchTypes.add({ id: newId(), name, abbr: name.slice(0, 2).toUpperCase(), updatedAt: now(), ...pendingSync() })
     setNewName('')
   }
 
   const renameType = async (id: string, current: string) => {
     const name = prompt('New name for this pitch type:', current)?.trim()
-    if (name) await db.pitchTypes.update(id, { name, updatedAt: now() })
+    if (name) await db.pitchTypes.update(id, { name, updatedAt: now(), ...pendingSync() })
   }
 
   const removeType = async (id: string) => {
@@ -158,8 +158,8 @@ export default function Settings() {
 
       <h2>Backup</h2>
       <p className="muted">
-        All data lives on this device. Export a backup file every so often (and before switching phones),
-        then import it to restore.
+        All data lives on this device. Nothing is sent off the phone until cloud sync exists.
+        Export a backup file every so often (and before switching phones), then import it to restore.
       </p>
       <div className="row">
         <button className="primary grow" onClick={doExport}>Export backup</button>
