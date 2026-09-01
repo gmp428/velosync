@@ -1,4 +1,4 @@
-# 🥎 Pitch Tracker
+# VeloSync
 
 A phone-friendly web app for tracking softball pitch data. Log every pitch — type, location, and result — against opposing batters, and use that history to decide what to throw next time they're up.
 
@@ -25,9 +25,4 @@ npm run preview    # serve the production build locally
 
 ## Deployment
 
-Pushes to `main` deploy automatically to GitHub Pages via `.github/workflows/deploy.yml`. The Vite `base` is set to `/pitch-tracker/` in `vite.config.ts` — change it if the repo is renamed.
-
-## Roadmap
-
-- Iterate on features as a web app until the workflow feels right at the field
-- Then wrap the same codebase into native iOS/Android apps with [Capacitor](https://capacitorjs.com/)
+Pushes to `main` deploy automatically to GitHub Pages via `.github/workflows/deploy.yml`. The Vite `base` is `/velosync/` so the site is served at `/velosync/`.
