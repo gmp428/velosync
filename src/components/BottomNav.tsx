@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
-import Logo, { LOGO_NAVY } from './Logo'
 
 const ACTIVE_COLOR = 'var(--accent)'
 const INACTIVE_COLOR = 'var(--muted)'
@@ -90,6 +89,3 @@ export default function BottomNav() {
     </nav>
   )
 }
-
-// re-export so BottomNav's home icon can be swapped for the shield mark if desired
-export { Logo, LOGO_NAVY }

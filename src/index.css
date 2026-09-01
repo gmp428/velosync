@@ -28,6 +28,8 @@ html, body {
    clear the tallest case: 51px content + up to ~34px safe-area on iPhones
    with a home indicator = ~85px; round up to 96px for margin. */
 #root { max-width: 640px; margin: 0 auto; padding: 0 12px calc(96px + env(safe-area-inset-bottom, 0px)); }
+/* Live logger (/game/:id): no tab bar, so drop the reserved nav inset and sit flush. */
+#root:has(.live-game) { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
 h1, h2, h3 { margin: 12px 0 8px; }
 h1 { font-size: 1.3rem; }
@@ -50,6 +52,15 @@ a { color: var(--accent); text-decoration: none; }
 }
 .topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .topbar .brand-word { display: inline-block; }
+.topbar .brand-pr {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
 /* Bottom tab navigation — primary nav on ALL viewport widths.
    Content height (icon+label+padding) = 8 + 22 + 2 + ~13 + 6 = 51px.
    The iOS home-indicator safe area is added as EXTRA bottom padding on the

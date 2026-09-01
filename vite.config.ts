@@ -2,16 +2,32 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const pr = process.env.VELOSYNC_PR?.trim() || ''
+const base = pr ? `/velosync/pr/${pr}/` : '/velosync/'
+const appName = pr ? 'VeloSync PR' : 'VeloSync'
+
 export default defineConfig({
-  base: '/pitch-tracker/',
+  base,
   plugins: [
     react(),
+    {
+      name: 'html-pr-chrome',
+      transformIndexHtml(html) {
+        if (!pr) return html
+        return html.replace('<title>VeloSync</title>', '<title>VeloSync PR</title>')
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'VeloSync',
-        short_name: 'VeloSync',
-        description: 'Softball pitch tracking and scouting',
+        id: base,
+        name: appName,
+        short_name: appName,
+        start_url: base,
+        scope: base,
+        description: pr
+          ? 'Preview build of VeloSync'
+          : 'Softball pitch tracking and scouting',
         theme_color: '#e8eef7',
         background_color: '#e8eef7',
         display: 'standalone',
@@ -20,6 +36,10 @@ export default defineConfig({
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+      },
+      // Main SW scope is /velosync/; never intercept PR preview URLs.
+      workbox: {
+        navigateFallbackDenylist: [/^\/velosync\/pr\//],
       },
     }),
   ],

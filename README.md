@@ -1,4 +1,4 @@
-# 🥎 Pitch Tracker
+# VeloSync
 
 A phone-friendly web app for tracking softball pitch data. Log every pitch — type, location, and result — against opposing batters, and use that history to decide what to throw next time they're up.
 
@@ -25,9 +25,11 @@ npm run preview    # serve the production build locally
 
 ## Deployment
 
-Pushes to `main` deploy automatically to GitHub Pages via `.github/workflows/deploy.yml`. The Vite `base` is set to `/pitch-tracker/` in `vite.config.ts` — change it if the repo is renamed.
+GitHub Pages (project site) via `.github/workflows/deploy.yml` and the `gh-pages` branch:
 
-## Roadmap
+- **main** → https://gmp428.github.io/velosync/ (Vite `base` `/velosync/`, PWA name `VeloSync`)
+- **PR previews** → https://gmp428.github.io/velosync/pr/{number}/ (Vite `base` `/velosync/pr/{number}/`, PWA name `VeloSync PR`)
 
-- Iterate on features as a web app until the workflow feels right at the field
-- Then wrap the same codebase into native iOS/Android apps with [Capacitor](https://capacitorjs.com/)
+Main deploys replace root files but keep `pr/`. PR deploys only write that PR’s folder. Closing a PR removes its preview folder.
+
+Enable Pages once: **Settings → Pages → Branch: `gh-pages` / `/ (root)` → Save**.

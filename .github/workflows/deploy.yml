@@ -3,17 +3,26 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to publish under /pr/{n}/ (leave empty to publish main at site root)
+        required: false
+        type: string
 
 permissions:
   contents: write
+  pages: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: gh-pages-deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,15 +30,112 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Resolve deploy target
+        id: target
+        run: |
+          n=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            n="${{ github.event.number }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            n="${{ inputs.pr_number }}"
+          fi
+          n="$(echo "$n" | tr -cd '0-9')"
+          if [ -n "$n" ]; then
+            echo "pr=$n" >> "$GITHUB_OUTPUT"
+            echo "dest=pr/$n" >> "$GITHUB_OUTPUT"
+            echo "url=https://gmp428.github.io/velosync/pr/${n}/" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr=" >> "$GITHUB_OUTPUT"
+            echo "dest=" >> "$GITHUB_OUTPUT"
+            echo "url=https://gmp428.github.io/velosync/" >> "$GITHUB_OUTPUT"
+          fi
+
       - run: npm ci
       - run: npm run build
-      # Publish the built site to the gh-pages branch, which GitHub Pages serves
-      - run: |
+        env:
+          VELOSYNC_PR: ${{ steps.target.outputs.pr }}
+
+      - name: Publish to gh-pages without wiping the other site
+        env:
+          DEST: ${{ steps.target.outputs.dest }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
           touch dist/.nojekyll
-          cd dist
-          git init -b gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git clone --depth 1 --branch gh-pages "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" site; then
+            true
+          else
+            mkdir site
+            git -C site init -b gh-pages
+            git -C site remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          fi
+
+          if [ -z "${DEST}" ]; then
+            # Main: replace root files, keep pr/ previews.
+            find site -mindepth 1 -maxdepth 1 ! -name .git ! -name pr -exec rm -rf {} +
+            cp -a dist/. site/
+          else
+            # PR: replace only this preview folder.
+            rm -rf "site/${DEST}"
+            mkdir -p "site/${DEST}"
+            cp -a dist/. "site/${DEST}/"
+            touch site/.nojekyll
+          fi
+
+          cd site
           git add -A
-          git commit -m "Deploy ${{ github.sha }}"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" gh-pages:gh-pages
+          if git diff --cached --quiet; then
+            echo "No changes to publish"
+          else
+            git commit -m "Deploy ${{ github.sha }} to ${DEST:-/}"
+            git push origin HEAD:gh-pages
+          fi
+
+      - name: Try to enable GitHub Pages (no-op if already on or unauthorized)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/pages" \
+            -H "Accept: application/vnd.github+json" \
+            --input - <<'EOF' || true
+          {"source":{"branch":"gh-pages","path":"/"}}
+          EOF
+
+      - name: Publish URL
+        run: |
+          {
+            echo "## GitHub Pages"
+            echo "- **This deploy:** ${{ steps.target.outputs.url }}"
+            echo "- **main:** https://gmp428.github.io/velosync/"
+            echo "- **this PR preview:** https://gmp428.github.io/velosync/pr/1/"
+            echo
+            echo "Pages publishes from the \`gh-pages\` branch (root = main, \`pr/{n}/\` = preview)."
+            echo "If the URL 404s, enable Pages once: Settings → Pages → branch \`gh-pages\` / \`/ (root)\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Preview URL: ${{ steps.target.outputs.url }}"
+
+  cleanup:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove this PR's preview folder
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          n="${{ github.event.number }}"
+          git clone --depth 1 --branch gh-pages \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" site
+          if [ -d "site/pr/${n}" ]; then
+            git -C site config user.name "github-actions[bot]"
+            git -C site config user.email "github-actions[bot]@users.noreply.github.com"
+            rm -rf "site/pr/${n}"
+            git -C site add -A
+            git -C site commit -m "Remove preview for PR #${n}" || exit 0
+            git -C site push origin HEAD:gh-pages
+          fi
