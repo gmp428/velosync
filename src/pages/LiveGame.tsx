@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   CAPTURE_PRESETS, db, displayName, getSettings, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
@@ -59,6 +59,11 @@ export default function LiveGame() {
   const [scope, setScope] = useState<'all' | 'pitcher'>('all')
   // Showing the "wrong batter — switch to…" picker
   const [changingBatter, setChangingBatter] = useState(false)
+  // Showing the substitute-player picker (real roster change, tracked in history).
+  // null = closed; otherwise the batterId currently selected to be replaced
+  // (starts as the current batter when opened from the at-bat card).
+  const [substitutingFor, setSubstitutingFor] = useState<string | null>(null)
+  const [showSubstitutePanel, setShowSubstitutePanel] = useState(false)
   // Showing the drag-to-reorder lineup panel
   const [showLineup, setShowLineup] = useState(false)
   const bootingRef = useRef(false)
@@ -131,6 +136,48 @@ export default function LiveGame() {
       await db.games.update(gameId, { lineup: newLineup, updatedAt: now(), ...pendingSync() })
     })
     setChangingBatter(false)
+  }
+
+  // Substitute a bench (or brand-new) player in for `outgoingId` going
+  // forward in the batting order. This is a real roster change (tracked in
+  // Substitution history for scouting/stats), unlike "wrong batter?" above —
+  // it does NOT touch any already-completed at-bats/pitches for outgoingId,
+  // it only swaps that slot in the order for turns still to come. If the
+  // player currently at bat is the one being replaced, their in-progress
+  // at-bat (including any pitches already logged) is reassigned to the
+  // incoming batter, same as the wrong-batter fix does.
+  const substitutePlayer = async (outgoingId: string, incomingId: string) => {
+    if (outgoingId === incomingId) {
+      setSubstitutingFor(null)
+      setShowSubstitutePanel(false)
+      return
+    }
+    const without = order.filter((idv) => idv !== incomingId)
+    const at = without.indexOf(outgoingId)
+    const newLineup = at === -1
+      ? [...without, incomingId]
+      : [...without.slice(0, at), incomingId, ...without.slice(at + 1)]
+    await db.transaction('rw', db.atBats, db.pitches, db.games, db.substitutions, async () => {
+      // If the outgoing player is at bat right now, hand off the in-progress
+      // at-bat (and any pitches already logged in it) to the incoming player.
+      if (openAtBat && openAtBat.batterId === outgoingId) {
+        await db.atBats.update(openAtBat.id, { batterId: incomingId, updatedAt: now(), ...pendingSync() })
+        await db.pitches.where('atBatId').equals(openAtBat.id).modify({ batterId: incomingId, updatedAt: now(), ...pendingSync() })
+      }
+      await db.games.update(gameId, { lineup: newLineup, updatedAt: now(), ...pendingSync() })
+      await db.substitutions.add({
+        id: newId(),
+        gameId,
+        inning: curInning,
+        battedOutId: outgoingId,
+        battedInId: incomingId,
+        timestamp: Date.now(),
+        updatedAt: now(),
+        ...pendingSync(),
+      })
+    })
+    setSubstitutingFor(null)
+    setShowSubstitutePanel(false)
   }
 
   const startAtBat = async (batterId: string) => {
@@ -341,6 +388,15 @@ export default function LiveGame() {
               <button className="small" onClick={() => setChangingBatter((v) => !v)}>
                 {changingBatter ? 'Cancel' : '↔ Wrong batter?'}
               </button>
+              <button
+                className="small"
+                onClick={() => {
+                  setShowSubstitutePanel((v) => !v)
+                  setSubstitutingFor(batter.id)
+                }}
+              >
+                {showSubstitutePanel ? 'Cancel' : '⇄ Substitute'}
+              </button>
               {history.length > 0 && (
                 <>
                   <button
@@ -385,6 +441,58 @@ export default function LiveGame() {
               </div>
             </div>
           )}
+
+          {showSubstitutePanel && (() => {
+            const outgoingId = substitutingFor ?? batter.id
+            const outgoing = roster.find((b) => b.id === outgoingId)
+            // Pick from the FULL team roster, not just today's lineup — a
+            // bench player who never started can still sub in. Anyone
+            // currently occupying a different lineup slot is excluded (you
+            // can't sub a player in for two slots at once); the outgoing
+            // player themself is excluded too.
+            const inLineup = new Set(order)
+            const eligibleIncoming = roster.filter((b) => b.id !== outgoingId && !inLineup.has(b.id))
+            return (
+              <div className="card stack">
+                <strong>Substitute — replace who?</strong>
+                <select
+                  style={{ width: '100%' }}
+                  value={outgoingId}
+                  onChange={(e) => setSubstitutingFor(e.target.value)}
+                >
+                  {order.map((id) => {
+                    const b = roster.find((x) => x.id === id)
+                    if (!b) return null
+                    return <option key={id} value={id}>{b.number ? `#${b.number} ` : ''}{displayName(b)}</option>
+                  })}
+                </select>
+                <strong>Coming in for {outgoing ? displayName(outgoing) : '…'}</strong>
+                {eligibleIncoming.length === 0 && (
+                  <p className="empty">No bench players available on {opponent.name}’s roster.</p>
+                )}
+                <div className="list">
+                  {eligibleIncoming.map((b) => (
+                    <button
+                      key={b.id}
+                      className="list-item"
+                      style={{ width: '100%' }}
+                      onClick={() => substitutePlayer(outgoingId, b.id)}
+                    >
+                      <span>{b.number ? `#${b.number} ` : ''}{displayName(b)}</span>
+                      <span className="pill">bats {b.bats}</span>
+                      <span className="chev">›</span>
+                    </button>
+                  ))}
+                </div>
+                <Link to={`/opponent/${game.opponentId}`} className="btn small">
+                  + Add player to roster
+                </Link>
+                <p className="muted" style={{ margin: 0 }}>
+                  Add the new player on the team page, then come back to this game — it’ll resume right where you left off.
+                </p>
+              </div>
+            )
+          })()}
 
           {selType === null && <SuggestionPanel batter={batter} currentPitcherId={game.currentPitcherId} />}
 
