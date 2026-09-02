@@ -103,7 +103,10 @@ export default function LineupEditor({
     if (idx === -1) return
     const removedId = order[idx]
     onChange(order.filter((_, i) => i !== idx))
-    if (removedId !== GHOST_OUT) onRemoveBatter?.(removedId)
+    // Always notify the caller, including for a ghost-out slot — Roster.tsx
+    // needs this to turn off the persisted roster-level ghost setting, or
+    // it'll just get recomputed back into the order on the next render.
+    onRemoveBatter?.(removedId)
   }
 
   const addGhost = () => onChange([...order, GHOST_OUT])
