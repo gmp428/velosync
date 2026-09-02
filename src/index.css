@@ -264,7 +264,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .stat-tile .stat-num { font-size: 1.25rem; font-weight: 700; }
 
 /* Lineup drag rows */
-.lineup-row { touch-action: none; }
+/* Note: touch-action:none lives on .drag-handle only, not this row — the
+   drag gesture is scoped to the ≡ handle, so tapping/scrolling anywhere
+   else in the row (including dead center, away from any handle) still
+   lets the page scroll normally. */
 .lineup-num {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 24px; height: 24px; border-radius: 6px;
