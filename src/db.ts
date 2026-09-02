@@ -53,6 +53,15 @@ export interface Opponent {
   updatedAt: number
   syncStatus: SyncStatus
   syncedAt?: number | null
+  // Whether this opponent's baseline batting order (built on the roster
+  // screen) plans a "ghost out" placeholder in the 9th spot — for a league
+  // that enforces an automatic out for a short-handed 9th slot when the
+  // team has exactly 8 real active batters. Draggable like a real batter
+  // in the lineup editor; carried into a new game's default lineup
+  // alongside sortIndex. Only ever offered/settable when activeToday
+  // batters number exactly 8 — see Roster.tsx.
+  ghostOutEnabled?: boolean
+  ghostOutSortIndex?: number // position among batters' sortIndex values
 }
 
 export interface Batter {
@@ -68,10 +77,20 @@ export interface Batter {
   // Drives both the roster screen's display order and a new game's default
   // lineup when there's no prior finished-game lineup to inherit from.
   sortIndex: number
+  // Whether this batter is checked into TODAY's active lineup (max 9 checked
+  // at once per opponent, no minimum). Only checked batters appear in the
+  // batting-order drag list and get used to build a new game's lineup.
+  // Undefined only appears on rows from before this field existed; the v5
+  // migration backfills it, so app code should treat it as always defined.
+  activeToday?: boolean
   updatedAt: number
   syncStatus: SyncStatus
   syncedAt?: number | null
 }
+
+// A batting order has at most 9 active slots (no minimum — local/rec ball
+// commonly plays short-handed with zero penalty). Enforced in the roster UI.
+export const MAX_ACTIVE_LINEUP = 9
 
 export interface Pitcher {
   id: string
@@ -126,7 +145,9 @@ export interface Game {
   label?: string
   status: 'active' | 'finished'
   currentPitcherId?: string
-  lineup?: string[] // ordered batterIds — the opponent's batting order for this game
+  lineup?: string[] // ordered batterIds — the opponent's batting order for this game.
+  // A slot can also hold the GHOST_OUT sentinel (see below) instead of a
+  // real batterId, marking a vacated lineup spot that auto-outs when reached.
   currentInning?: number // advances during the game (undefined = untracked, treat as 1)
   half?: 'top' | 'bottom' // which half the opponent bats — constant for the game
   updatedAt: number
@@ -151,6 +172,16 @@ export interface Substitution {
   syncedAt?: number | null
 }
 
+// Sentinel placed into `Game.lineup` for a vacated slot marked "ghost out"
+// (a real mechanic — also called "automatic out" — in local/rec-ball
+// rulebooks: used for a short-handed team, a player who leaves/is ejected
+// mid-game, or any lineup slot with no sub available). When the batting
+// order's cycle reaches this sentinel, LiveGame auto-logs a scoreless out
+// and advances to the next real batter without any batter-picker or pitch
+// logging for that turn. Never a real batterId, so `db.batters.get(...)`
+// on it simply resolves to undefined — call sites must check for it first.
+export const GHOST_OUT = '__ghost_out__' as const
+
 export type AtBatOutcome =
   | 'walk'
   | 'strikeout'
@@ -161,10 +192,13 @@ export type AtBatOutcome =
   | 'home_run'
   | 'error'
   | 'hbp'
+  | 'ghost_out' // automatic scoreless out for a vacated (ghost) lineup slot
 
 export interface AtBat {
   id: string
   gameId: string
+  // Real batterId, or the GHOST_OUT sentinel for an automatic out logged
+  // against a vacated slot (no real batter took this turn).
   batterId: string
   pitcherId: string
   outcome?: AtBatOutcome
@@ -362,6 +396,19 @@ db.version(5).stores({
   substitutions: 'id, gameId, inning, battedOutId, battedInId, timestamp, updatedAt, syncStatus',
 })
 
+// v6 adds `activeToday` (checked-into-today's-lineup state) to batters, so
+// the roster screen can cap the active batting order at 9 without a minimum.
+// Existing rows predate the field — default every batter to checked-in
+// (existing rosters just keep behaving exactly as before: everyone bats)
+// rather than silently emptying every team's lineup on upgrade.
+db.version(6).stores({
+  batters: 'id, opponentId, updatedAt, syncStatus, sortIndex',
+}).upgrade(async (tx) => {
+  await tx.table('batters').toCollection().modify((row: Partial<Batter>) => {
+    if (row.activeToday == null) row.activeToday = true
+  })
+})
+
 // Discard the legacy integer-keyed database from before the UUID switch.
 Dexie.delete('pitch-tracker').catch(() => {})
 
@@ -423,6 +470,7 @@ export function outcomeLabel(o: AtBatOutcome | InPlayOutcome): string {
   return {
     walk: 'Walk', strikeout: 'Strikeout', out: 'Out', single: 'Single', double: 'Double',
     triple: 'Triple', home_run: 'Home run', error: 'Reached on error', hbp: 'Hit by pitch',
+    ghost_out: 'Ghost out (automatic)',
   }[o]
 }
 
@@ -488,15 +536,25 @@ export async function importAll(data: BackupFile): Promise<void> {
 // ---------- Lineup ----------
 
 // A game's default batting order: start from the most recent finished game's
-// lineup for this opponent, drop batters no longer on the roster, then append
-// any roster batters not already in it. Falls back to plain roster order.
+// lineup for this opponent, drop batters no longer on the roster or no longer
+// checked into today's lineup (activeToday), then append any active roster
+// batters not already in it. Falls back to plain roster order. Ghost-out
+// sentinels from a prior game are never carried forward — each game's
+// vacancies are decided fresh.
 export async function defaultLineup(opponentId: string): Promise<string[]> {
+  const opponent = await db.opponents.get(opponentId)
   const roster = await db.batters.where('opponentId').equals(opponentId).toArray()
-  const rosterIds = roster.map((b) => b.id)
-  const rosterSet = new Set(rosterIds)
+  const active = roster.filter((b) => b.activeToday !== false).slice(0, MAX_ACTIVE_LINEUP)
+  const activeSet = new Set(active.map((b) => b.id))
   // Fallback order when there's no prior lineup to inherit: the coach's saved
-  // batting order (sortIndex), not raw insertion order.
-  const bySortIndex = [...roster].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)).map((b) => b.id)
+  // batting order (sortIndex), not raw insertion order. Splices in the
+  // roster-level planned ghost-out slot (see Opponent.ghostOutEnabled) if set.
+  const items: Array<{ id: string; sortIndex: number }> = active.map((b) => ({ id: b.id, sortIndex: b.sortIndex ?? 0 }))
+  if (opponent?.ghostOutEnabled) {
+    items.push({ id: GHOST_OUT, sortIndex: opponent.ghostOutSortIndex ?? Infinity })
+  }
+  items.sort((a, b) => a.sortIndex - b.sortIndex)
+  const bySortIndex = items.map((i) => i.id)
 
   const games = await db.games.where('opponentId').equals(opponentId).toArray()
   const prev = games
@@ -504,7 +562,7 @@ export async function defaultLineup(opponentId: string): Promise<string[]> {
     .sort((a, b) => b.updatedAt - a.updatedAt)[0]
 
   if (!prev?.lineup) return bySortIndex
-  const kept = prev.lineup.filter((id) => rosterSet.has(id))
+  const kept = prev.lineup.filter((id) => id !== GHOST_OUT && activeSet.has(id))
   const appended = bySortIndex.filter((id) => !kept.includes(id))
   return [...kept, ...appended]
 }
@@ -515,26 +573,29 @@ export async function defaultLineup(opponentId: string): Promise<string[]> {
 // PLAYED order, not just the most recently built one. Only batters present in
 // `lineup` are touched; a batter added to the roster after this game (so not
 // in the lineup) keeps its existing sortIndex and still sorts to the end.
+// Ghost-out sentinels in `lineup` are skipped — there's no batter row to update.
 export async function persistLineupToRoster(lineup: string[]): Promise<void> {
   await db.transaction('rw', db.batters, async () => {
-    const lineupSet = new Set(lineup)
+    const realLineup = lineup.filter((id) => id !== GHOST_OUT)
+    if (realLineup.length === 0) return
+    const lineupSet = new Set(realLineup)
     // Batters not in this lineup (e.g. added to the roster after this game
     // started) keep their relative order but must be pushed past the lineup
     // batters' new indices so nothing collides with 0..lineup.length-1.
-    const opponentId = (await db.batters.get(lineup[0]))?.opponentId
+    const opponentId = (await db.batters.get(realLineup[0]))?.opponentId
     const others = opponentId
       ? (await db.batters.where('opponentId').equals(opponentId).toArray())
           .filter((b) => !lineupSet.has(b.id))
           .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0))
       : []
 
-    for (let i = 0; i < lineup.length; i++) {
-      const batter = await db.batters.get(lineup[i])
+    for (let i = 0; i < realLineup.length; i++) {
+      const batter = await db.batters.get(realLineup[i])
       if (!batter) continue // batter removed from roster since the game started
-      await db.batters.update(lineup[i], { sortIndex: i, updatedAt: now(), ...pendingSync() })
+      await db.batters.update(realLineup[i], { sortIndex: i, updatedAt: now(), ...pendingSync() })
     }
     for (let i = 0; i < others.length; i++) {
-      await db.batters.update(others[i].id, { sortIndex: lineup.length + i, updatedAt: now(), ...pendingSync() })
+      await db.batters.update(others[i].id, { sortIndex: realLineup.length + i, updatedAt: now(), ...pendingSync() })
     }
   })
 }

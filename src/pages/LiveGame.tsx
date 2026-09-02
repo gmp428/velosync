@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CAPTURE_PRESETS, db, displayName, getSettings, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
+  CAPTURE_PRESETS, db, displayName, getSettings, GHOST_OUT, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
   type AtBatOutcome, type Batter, type InPlayOutcome, type Pitch, type PitchResult, type Zone,
 } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
@@ -10,13 +10,35 @@ import SuggestionPanel from '../components/SuggestionPanel'
 import LineupEditor from '../components/LineupEditor'
 import { battleAgg, battleRate, byZoneBattle, outcomeBreakdown, pct } from '../lib/stats'
 
-// The next batter in the order after `currentId`, cycling back to the top.
-// Falls back to the leadoff hitter if the current batter isn't in the order.
-function nextInLineup(lineup: string[] | undefined, currentId: string): string | undefined {
-  if (!lineup || lineup.length === 0) return undefined
-  const idx = lineup.indexOf(currentId)
-  if (idx === -1) return lineup[0]
-  return lineup[(idx + 1) % lineup.length]
+// Opens the next real batter's at-bat starting at `fromIndex` in `order`,
+// auto-logging a scoreless "ghost out" AtBat (batterId = GHOST_OUT sentinel,
+// outcome = 'ghost_out') for every vacant slot walked past along the way —
+// no batter-picker or pitch logging happens for those turns. Index-based
+// (not batterId-based) because the GHOST_OUT sentinel repeats across slots,
+// so identity alone can't tell two ghost slots apart. Bounded to one lap so
+// an all-ghost order (no real batters left) can't spin forever.
+async function openNextRealAtBat(
+  gameId: string, order: string[], fromIndex: number, pitcherId: string, inning: number,
+): Promise<void> {
+  if (order.length === 0) return
+  let idx = ((fromIndex % order.length) + order.length) % order.length
+  for (let steps = 0; steps < order.length; steps++) {
+    const slot = order[idx]
+    if (slot !== GHOST_OUT) {
+      await db.atBats.add({
+        id: newId(), gameId, batterId: slot, pitcherId, inning,
+        startedAt: Date.now(), updatedAt: now(), ...pendingSync(),
+      })
+      return
+    }
+    await db.atBats.add({
+      id: newId(), gameId, batterId: GHOST_OUT, pitcherId, outcome: 'ghost_out', inning,
+      startedAt: Date.now(), updatedAt: now(), ...pendingSync(),
+    })
+    idx = (idx + 1) % order.length
+  }
+  // Every slot is a ghost out — nothing real to bat. Leave the game idle
+  // rather than looping forever; the coach needs to check a real batter in.
 }
 
 export default function LiveGame() {
@@ -80,14 +102,15 @@ export default function LiveGame() {
   }, [openAtBat?.batterId])
 
   // Auto-start the leadoff hitter when an active game has no at-bats yet.
+  // If the lineup opens with one or more ghost-out slots, those are logged
+  // automatically first and the first real batter's at-bat opens instead.
   useEffect(() => {
     if (!game || game.status !== 'active') return
     if (atBatCount !== 0) return // undefined = loading; >0 = already underway
     const lu = game.lineup && game.lineup.length ? game.lineup : (roster ?? []).map((b) => b.id)
     if (lu.length === 0 || bootingRef.current) return
     bootingRef.current = true
-    db.atBats
-      .add({ id: newId(), gameId, batterId: lu[0], pitcherId: game.currentPitcherId!, inning: game.currentInning ?? 1, startedAt: Date.now(), updatedAt: now(), ...pendingSync() })
+    openNextRealAtBat(gameId, lu, 0, game.currentPitcherId!, game.currentInning ?? 1)
       .finally(() => { bootingRef.current = false })
   }, [game?.status, atBatCount, game?.lineup, game?.currentPitcherId, gameId, roster])
 
@@ -102,7 +125,8 @@ export default function LiveGame() {
   const halfLabel = half === 'top' ? 'Top' : 'Bot'
 
   // The batting order to drive auto-advance / the lineup panel. Always falls
-  // back to roster order so a game with no saved lineup still works.
+  // back to roster order so a game with no saved lineup still works. May
+  // include GHOST_OUT sentinels for vacated slots.
   const rosterIds = roster.map((b) => b.id)
   const order = game.lineup && game.lineup.length > 0 ? game.lineup : rosterIds
 
@@ -146,35 +170,57 @@ export default function LiveGame() {
   // player currently at bat is the one being replaced, their in-progress
   // at-bat (including any pitches already logged) is reassigned to the
   // incoming batter, same as the wrong-batter fix does.
-  const substitutePlayer = async (outgoingId: string, incomingId: string) => {
+  //
+  // Passing null for incomingId marks the vacated slot a "ghost out" instead
+  // of a real substitute (e.g. player is hurt, no sub available, league
+  // enforces an automatic out for the gap). If the outgoing player is
+  // currently at bat with NO pitches logged yet, that at-bat converts to a
+  // ghost-out immediately and the game auto-advances; if pitches were
+  // already thrown, that in-progress at-bat is left untouched (it's real
+  // scouting data) and only their future turns in the order become ghosts.
+  const substitutePlayer = async (outgoingId: string, incomingId: string | null) => {
     if (outgoingId === incomingId) {
       setSubstitutingFor(null)
       setShowSubstitutePanel(false)
       return
     }
+    const replacement = incomingId ?? GHOST_OUT
     const without = order.filter((idv) => idv !== incomingId)
     const at = without.indexOf(outgoingId)
     const newLineup = at === -1
-      ? [...without, incomingId]
-      : [...without.slice(0, at), incomingId, ...without.slice(at + 1)]
+      ? [...without, replacement]
+      : [...without.slice(0, at), replacement, ...without.slice(at + 1)]
     await db.transaction('rw', db.atBats, db.pitches, db.games, db.substitutions, async () => {
-      // If the outgoing player is at bat right now, hand off the in-progress
-      // at-bat (and any pitches already logged in it) to the incoming player.
-      if (openAtBat && openAtBat.batterId === outgoingId) {
-        await db.atBats.update(openAtBat.id, { batterId: incomingId, updatedAt: now(), ...pendingSync() })
-        await db.pitches.where('atBatId').equals(openAtBat.id).modify({ batterId: incomingId, updatedAt: now(), ...pendingSync() })
+      // If the outgoing player is at bat right now with no pitches thrown
+      // yet, hand off (real sub) or convert (ghost out) the in-progress
+      // at-bat. If pitches were already logged, leave that turn as real
+      // scouting data — only future turns become the substitute/ghost.
+      if (openAtBat && openAtBat.batterId === outgoingId && (abPitches?.length ?? 0) === 0) {
+        if (incomingId) {
+          await db.atBats.update(openAtBat.id, { batterId: incomingId, updatedAt: now(), ...pendingSync() })
+        } else {
+          await db.atBats.update(openAtBat.id, { batterId: GHOST_OUT, outcome: 'ghost_out', updatedAt: now(), ...pendingSync() })
+        }
       }
       await db.games.update(gameId, { lineup: newLineup, updatedAt: now(), ...pendingSync() })
-      await db.substitutions.add({
-        id: newId(),
-        gameId,
-        inning: curInning,
-        battedOutId: outgoingId,
-        battedInId: incomingId,
-        timestamp: Date.now(),
-        updatedAt: now(),
-        ...pendingSync(),
-      })
+      if (incomingId) {
+        await db.substitutions.add({
+          id: newId(),
+          gameId,
+          inning: curInning,
+          battedOutId: outgoingId,
+          battedInId: incomingId,
+          timestamp: Date.now(),
+          updatedAt: now(),
+          ...pendingSync(),
+        })
+      }
+      // The current turn just became a ghost out (no batter to bat it) —
+      // immediately advance to the next real batter, same as commit() does
+      // after any other out.
+      if (openAtBat && openAtBat.batterId === outgoingId && (abPitches?.length ?? 0) === 0 && !incomingId) {
+        await openNextRealAtBat(gameId, newLineup, at === -1 ? newLineup.length - 1 : at, game.currentPitcherId ?? openAtBat.pitcherId, curInning)
+      }
     })
     setSubstitutingFor(null)
     setShowSubstitutePanel(false)
@@ -229,27 +275,25 @@ export default function LiveGame() {
       if (outcome) {
         await db.atBats.update(openAtBat.id, { outcome, updatedAt: now(), ...pendingSync() })
         // Inning auto-advance: once 3 outs are recorded in the current inning,
-        // roll to the next one so the next at-bat is stamped with it.
+        // roll to the next one so the next at-bat is stamped with it. Ghost
+        // outs count as outs too — a vacated slot still costs the inning.
         let nextInning = curInning
         if (cap.inning && (outcome === 'out' || outcome === 'strikeout')) {
           const gameAbs = await db.atBats.where('gameId').equals(gameId).toArray()
           const outs = gameAbs.filter(
-            (a) => (a.inning ?? curInning) === curInning && (a.outcome === 'out' || a.outcome === 'strikeout'),
+            (a) => (a.inning ?? curInning) === curInning
+              && (a.outcome === 'out' || a.outcome === 'strikeout' || a.outcome === 'ghost_out'),
           ).length
           if (outs >= 3) {
             nextInning = curInning + 1
             await db.games.update(gameId, { currentInning: nextInning, updatedAt: now(), ...pendingSync() })
           }
         }
-        // Auto-advance: open the next batter's at-bat per the lineup order.
-        const nextId = nextInLineup(order, openAtBat.batterId)
-        if (nextId) {
-          await db.atBats.add({
-            id: newId(), gameId, batterId: nextId,
-            pitcherId: game.currentPitcherId ?? openAtBat.pitcherId,
-            inning: nextInning,
-            startedAt: Date.now(), updatedAt: now(), ...pendingSync(),
-          })
+        // Auto-advance: open the next batter's at-bat per the lineup order,
+        // auto-logging (and skipping past) any ghost-out slots in between.
+        const curIdx = order.indexOf(openAtBat.batterId)
+        if (curIdx !== -1 && order.length > 0) {
+          await openNextRealAtBat(gameId, order, curIdx + 1, game.currentPitcherId ?? openAtBat.pitcherId, nextInning)
         }
       }
     })
@@ -262,9 +306,13 @@ export default function LiveGame() {
     await db.transaction('rw', db.pitches, db.atBats, async () => {
       const last = await db.pitches.where('gameId').equals(gameId).last()
       if (!last) {
-        // No pitches yet — undo just backs out of the current batter selection
+        // No pitches yet — undo just backs out of the current batter selection,
+        // or (if the most recent turn was a ghost out) the ghost-out record.
         const open = await db.atBats.where('gameId').equals(gameId).filter((ab) => ab.outcome === undefined).first()
-        if (open) await db.atBats.delete(open.id)
+        if (open) { await db.atBats.delete(open.id); return }
+        const allAbs = await db.atBats.where('gameId').equals(gameId).toArray()
+        const lastGhost = allAbs.filter((a) => a.outcome === 'ghost_out').sort((a, b) => b.startedAt - a.startedAt)[0]
+        if (lastGhost) await db.atBats.delete(lastGhost.id)
         return
       }
       // If a fresh (pitchless) at-bat was already started after the last pitch, remove it
@@ -339,10 +387,17 @@ export default function LiveGame() {
       {showLineup && (
         <div className="card stack">
           <strong>Batting order — drag ≡ to reorder</strong>
+          <p className="muted" style={{ margin: 0 }}>
+            ✕ benches a batter for today (unchecks them on the roster too).
+            Add a Ghost Batter (Auto Out) slot for a vacancy with no sub — it auto-logs a scoreless
+            out and skips ahead when the order reaches it.
+          </p>
           <LineupEditor
             order={order}
             batters={roster}
             onChange={(o) => db.games.update(gameId, { lineup: o, updatedAt: now(), ...pendingSync() })}
+            onRemoveBatter={(batterId) => db.batters.update(batterId, { activeToday: false, updatedAt: now(), ...pendingSync() })}
+            allowGhostAdd
           />
         </div>
       )}
@@ -483,6 +538,14 @@ export default function LiveGame() {
                       <span className="chev">›</span>
                     </button>
                   ))}
+                  <button
+                    className="list-item"
+                    style={{ width: '100%' }}
+                    onClick={() => substitutePlayer(outgoingId, null)}
+                  >
+                    <span>No substitute — mark as Ghost Batter (Auto Out)</span>
+                    <span className="chev">›</span>
+                  </button>
                 </div>
                 <Link to={`/opponent/${game.opponentId}`} className="btn small">
                   + Add player to roster

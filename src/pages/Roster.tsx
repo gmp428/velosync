@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, newId, now, pendingSync } from '../db'
+import { db, displayName, GHOST_OUT, MAX_ACTIVE_LINEUP, newId, now, pendingSync } from '../db'
 import LineupEditor from '../components/LineupEditor'
 
 export default function Roster() {
@@ -13,7 +13,27 @@ export default function Roster() {
   // Display (and lineup-default) order always follows the saved sortIndex, not
   // whatever order Dexie happened to return rows in.
   const batters = battersRaw ? [...battersRaw].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)) : battersRaw
-  const battingOrder = batters?.map((b) => b.id) ?? []
+
+  // Only batters checked into today's lineup (activeToday) appear in the
+  // drag-to-reorder batting order. A batter created before this field
+  // existed defaults to checked-in (activeToday !== false), matching the
+  // v5 migration. Ghost-out slots aren't offered here — they're a per-GAME
+  // concept (persisted on Game.lineup once a game exists); the roster
+  // screen only sets the baseline order/roster for the *next* game.
+  const activeBatters = batters?.filter((b) => b.activeToday !== false) ?? []
+  const activeCount = activeBatters.length
+  // A roster-level "planned" ghost-out slot fills out the 9th spot for a
+  // league that requires an automatic out there when the team is one short.
+  // Only offered when exactly 8 real batters are checked in — with 9 there's
+  // no room for it, and below 8 the coach is already short more than one.
+  const ghostEnabled = opponent?.ghostOutEnabled === true && activeCount === 8
+  const battingOrder: string[] = activeBatters.map((b) => b.id)
+  if (ghostEnabled) {
+    const idx = opponent?.ghostOutSortIndex ?? Infinity
+    const insertAt = activeBatters.findIndex((b) => (b.sortIndex ?? 0) > idx)
+    if (insertAt === -1) battingOrder.push(GHOST_OUT)
+    else battingOrder.splice(insertAt, 0, GHOST_OUT)
+  }
 
   // The roster list below is a separate, stable reference list — always
   // alphabetical by last name (falling back to first name), independent
@@ -53,17 +73,67 @@ export default function Roster() {
       const nextSortIndex = batters && batters.length > 0
         ? Math.max(...batters.map((b) => b.sortIndex ?? 0)) + 1
         : 0
-      await db.batters.add({ id: newId(), opponentId, sortIndex: nextSortIndex, ...fields })
+      // New batters join today's active lineup automatically as long as
+      // there's room under the 9-max cap; over the cap they land unchecked
+      // on the roster so the coach can swap someone out first.
+      const activeToday = activeCount < MAX_ACTIVE_LINEUP
+      await db.batters.add({ id: newId(), opponentId, sortIndex: nextSortIndex, activeToday, ...fields })
     }
     resetForm()
   }
 
+  // Persists both the real batters' sortIndex AND (if a ghost slot is
+  // present) its position, expressed as a sortIndex value between its
+  // neighbors — so dragging the ghost slot around the order sticks.
   const reorder = async (order: string[]) => {
+    const realOrder = order.filter((oid) => oid !== GHOST_OUT)
     await db.transaction('rw', db.batters, async () => {
-      for (let i = 0; i < order.length; i++) {
-        await db.batters.update(order[i], { sortIndex: i, updatedAt: now(), ...pendingSync() })
+      for (let i = 0; i < realOrder.length; i++) {
+        await db.batters.update(realOrder[i], { sortIndex: i, updatedAt: now(), ...pendingSync() })
       }
     })
+    const ghostAt = order.indexOf(GHOST_OUT)
+    if (ghostAt !== -1) {
+      // Position the ghost slot just after the real batter now sitting
+      // before it in the dragged order (or before index 0 if dragged to top).
+      const ghostSortIndex = ghostAt === 0 ? -0.5 : ghostAt - 0.5
+      await db.opponents.update(opponentId, { ghostOutSortIndex: ghostSortIndex, updatedAt: now(), ...pendingSync() })
+    }
+  }
+
+  // Toggle the roster-level planned ghost-out slot on/off. Only offered
+  // (and meaningful) at exactly 8 active batters — see `ghostEnabled` above.
+  const setGhostEnabled = async (enabled: boolean) => {
+    await db.opponents.update(opponentId, {
+      ghostOutEnabled: enabled,
+      ghostOutSortIndex: enabled ? activeCount - 0.5 : undefined,
+      updatedAt: now(),
+      ...pendingSync(),
+    })
+  }
+
+  // Unchecks a batter from today's lineup — called both from the roster
+  // checkbox and from the drag-list's ✕ (both views share this one state).
+  // Checking IN a batter sends them to the bottom of the current batting
+  // order (next sortIndex after the highest active one), not wherever their
+  // old sortIndex happened to be — so checking players one at a time in the
+  // order you want them to bat builds the lineup top-to-bottom naturally,
+  // without disturbing anyone already checked in.
+  const setActive = async (batterId: string, active: boolean) => {
+    if (active && activeCount >= MAX_ACTIVE_LINEUP) {
+      alert(`A batting order can have at most ${MAX_ACTIVE_LINEUP} active players. Uncheck someone first.`)
+      return
+    }
+    const fields: { activeToday: boolean; updatedAt: number; sortIndex?: number } = {
+      activeToday: active,
+      updatedAt: now(),
+    }
+    if (active) {
+      fields.sortIndex = activeBatters.length > 0
+        ? Math.max(...activeBatters.map((b) => b.sortIndex ?? 0)) + 1
+        : 0
+    }
+    await db.batters.update(batterId, { ...fields, ...pendingSync() })
   }
 
   const startEdit = (batterId: string) => {
@@ -105,28 +175,101 @@ export default function Roster() {
       <p className="muted">Tap a batter to see their scouting report.</p>
 
       <h2 style={{ marginTop: 20 }}>Batting order — drag ≡ to reorder</h2>
-      <p className="muted">Sets the default lineup order for this team's next game.</p>
-      {batters.length > 0 ? (
-        <LineupEditor order={battingOrder} batters={batters} onChange={reorder} />
+      <p className="muted">
+        {activeCount}/{MAX_ACTIVE_LINEUP} checked in for today. Sets the default lineup order for this team's next game.
+      </p>
+      {activeCount > 0 && activeCount < 8 && (
+        <p className="warning" style={{ marginTop: -8 }}>
+          Only {activeCount} checked in — most leagues require at least 8 to
+          play (rules vary; this isn't blocked, just a heads up).
+        </p>
+      )}
+      {activeCount === 8 && (
+        <label className="row" style={{ alignItems: 'center', gap: 8, marginTop: -8 }}>
+          <input
+            type="checkbox"
+            checked={opponent?.ghostOutEnabled === true}
+            onChange={(e) => setGhostEnabled(e.target.checked)}
+            style={{ width: 20, height: 20, flexShrink: 0 }}
+          />
+          <span className="muted">
+            Add a Ghost Batter (Auto Out) for the 9th spot — some leagues require an
+            automatic out there when you're one player short.
+          </span>
+        </label>
+      )}
+      {battingOrder.length > 0 ? (
+        <LineupEditor
+          order={battingOrder}
+          batters={activeBatters}
+          onChange={reorder}
+          onRemoveBatter={(batterId) =>
+            batterId === GHOST_OUT ? setGhostEnabled(false) : setActive(batterId, false)
+          }
+        />
       ) : (
-        <p className="empty">Add batters below to set a batting order.</p>
+        <p className="empty">Check batters into today's lineup below to set a batting order.</p>
       )}
 
       <h2 style={{ marginTop: 20 }}>Roster</h2>
       <div className="list">
-        {rosterList.map((b) => (
-          <div key={b.id} className="list-item">
-            <Link to={`/batter/${b.id}`} className="grow" style={{ color: 'var(--text)' }}>
-              {b.number ? `#${b.number} ` : ''}{displayName(b)} <span className="pill">bats {b.bats}</span>
-            </Link>
-            <button className="small" onClick={() => startEdit(b.id)}>Edit</button>
-            <button className="small danger" onClick={() => removeBatter(b.id)}>✕</button>
-          </div>
-        ))}
+        {rosterList.map((b) => {
+          const isActive = b.activeToday !== false
+          return (
+            <div key={b.id}>
+              <div className="list-item">
+                <input
+                  type="checkbox"
+                  aria-label={`${displayName(b)} in today's lineup`}
+                  checked={isActive}
+                  disabled={!isActive && activeCount >= MAX_ACTIVE_LINEUP}
+                  onChange={(e) => setActive(b.id, e.target.checked)}
+                  style={{ width: 20, height: 20, flexShrink: 0 }}
+                />
+                <Link to={`/batter/${b.id}`} className="grow" style={{ color: 'var(--text)' }}>
+                  {b.number ? `#${b.number} ` : ''}{displayName(b)} <span className="pill">bats {b.bats}</span>
+                </Link>
+                <button className="small" onClick={() => (editingId === b.id ? resetForm() : startEdit(b.id))}>
+                  {editingId === b.id ? 'Close' : 'Edit'}
+                </button>
+                <button className="small danger" onClick={() => removeBatter(b.id)}>✕</button>
+              </div>
+              {editingId === b.id && (
+                <form onSubmit={save} className="card stack" style={{ marginTop: 8, marginBottom: 8 }}>
+                  <strong>Edit batter</strong>
+                  <div className="row">
+                    <div className="grow">
+                      <label>First name</label>
+                      <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First" />
+                    </div>
+                    <div className="grow">
+                      <label>Last name</label>
+                      <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last" />
+                    </div>
+                    <div style={{ width: 64 }}>
+                      <label>#</label>
+                      <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="12" inputMode="numeric" />
+                    </div>
+                  </div>
+                  <div className="row">
+                    <label style={{ margin: 0 }}>Bats:</label>
+                    <button type="button" className={`chip ${bats === 'R' ? 'on' : ''}`} onClick={() => setBats('R')}>Right</button>
+                    <button type="button" className={`chip ${bats === 'L' ? 'on' : ''}`} onClick={() => setBats('L')}>Left</button>
+                  </div>
+                  <div className="row">
+                    <button type="submit" className="primary grow">Save changes</button>
+                    <button type="button" onClick={resetForm}>Cancel</button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      <form onSubmit={save} className="card stack">
-        <strong>{editingId !== null ? 'Edit batter' : 'Add batter'}</strong>
+
+      <form onSubmit={save} className="card stack" style={{ display: editingId !== null ? 'none' : undefined }}>
+        <strong>Add batter</strong>
         <div className="row">
           <div className="grow">
             <label>First name</label>
@@ -147,8 +290,7 @@ export default function Roster() {
           <button type="button" className={`chip ${bats === 'L' ? 'on' : ''}`} onClick={() => setBats('L')}>Left</button>
         </div>
         <div className="row">
-          <button type="submit" className="primary grow">{editingId !== null ? 'Save changes' : 'Add batter'}</button>
-          {editingId !== null && <button type="button" onClick={resetForm}>Cancel</button>}
+          <button type="submit" className="primary grow">Add batter</button>
         </div>
       </form>
 

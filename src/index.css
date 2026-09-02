@@ -111,6 +111,8 @@ button, .btn {
 button:active, .btn:active { transform: scale(0.98); }
 button.primary, .btn.primary { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; font-weight: 600; }
 button.danger { border-color: #e0a3a3; color: var(--bad); }
+
+.warning { color: #a66b00; font-size: 0.9rem; }
 button.small { min-height: 34px; padding: 6px 10px; font-size: 0.85rem; border-radius: 8px; }
 button:disabled { opacity: 0.45; cursor: default; }
 
@@ -262,7 +264,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .stat-tile .stat-num { font-size: 1.25rem; font-weight: 700; }
 
 /* Lineup drag rows */
-.lineup-row { touch-action: none; }
+/* Note: touch-action:none lives on .drag-handle only, not this row — the
+   drag gesture is scoped to the ≡ handle, so tapping/scrolling anywhere
+   else in the row (including dead center, away from any handle) still
+   lets the page scroll normally. */
 .lineup-num {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 24px; height: 24px; border-radius: 6px;
@@ -274,6 +279,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   cursor: grab; touch-action: none;
 }
 .drag-handle:active { cursor: grabbing; }
+.ghost-row { opacity: 0.75; border-style: dashed; }
 
 .pill { border-radius: 6px; padding: 2px 8px; font-size: 0.78rem; background: var(--panel-2); color: var(--muted); }
 .good { color: var(--good); }
