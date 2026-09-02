@@ -93,6 +93,7 @@ export default function LiveGame() {
   )
   const gamePitchCount = useLiveQuery(() => db.pitches.where('gameId').equals(gameId).count(), [gameId])
   const atBatCount = useLiveQuery(() => db.atBats.where('gameId').equals(gameId).count(), [gameId])
+  const gameAtBats = useLiveQuery(() => db.atBats.where('gameId').equals(gameId).toArray(), [gameId])
   // All history on the current batter, live-updating as pitches are logged
   const batterHistory = useLiveQuery(
     () => (openAtBat ? db.pitches.where('batterId').equals(openAtBat.batterId).toArray() : Promise.resolve([] as Pitch[])),
@@ -165,6 +166,14 @@ export default function LiveGame() {
   const curInning = game.currentInning ?? 1
   const half = game.half ?? 'top'
   const halfLabel = half === 'top' ? 'Top' : 'Bot'
+
+  // Outs so far in the current inning half — the same tally the
+  // inning-advance logic uses to roll over at 3, shown live as filled/empty
+  // circles. The 3rd out is never actually seen filled in because the
+  // inning auto-advances (and resets this to 0) the instant it's logged.
+  const outsThisInning = (gameAtBats ?? []).filter(
+    (a) => (a.inning ?? curInning) === curInning && (a.outcome === 'out' || a.outcome === 'strikeout'),
+  ).length
 
   // The batting order to drive auto-advance / the lineup panel. Always falls
   // back to roster order so a game with no saved lineup still works. May
@@ -504,7 +513,22 @@ export default function LiveGame() {
                 <div style={{ fontWeight: 700 }}>{batter.number ? `#${batter.number} ` : ''}{displayName(batter)}</div>
                 <div className="muted">bats {batter.bats} · vs {displayName(currentPitcher)}</div>
               </div>
-              <div className="count-display">{balls}-{strikes}</div>
+              <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                <span
+                  className="inning-indicator"
+                  title={`${halfLabel === 'Top' ? 'Top' : 'Bottom'} of inning ${curInning}`}
+                  aria-label={`${halfLabel === 'Top' ? 'Top' : 'Bottom'} of inning ${curInning}`}
+                >
+                  <span className={`inning-triangle ${half === 'top' ? 'up' : 'down'}`} aria-hidden="true" />
+                  <span className="inning-number">{curInning}</span>
+                </span>
+                <span className="outs-tracker" aria-label={`${outsThisInning} outs`}>
+                  {[0, 1, 2].map((i) => (
+                    <span key={i} className={`out-dot ${i < outsThisInning ? 'filled' : ''}`} aria-hidden="true" />
+                  ))}
+                </span>
+                <div className="count-display">{balls}-{strikes}</div>
+              </div>
             </div>
             <div className="row" style={{ marginTop: 8 }}>
               <button className="small" onClick={() => setChangingBatter((v) => !v)}>

@@ -150,6 +150,12 @@ export interface Game {
   // real batterId, marking a vacated lineup spot that auto-outs when reached.
   currentInning?: number // advances during the game (undefined = untracked, treat as 1)
   half?: 'top' | 'bottom' // which half the opponent bats — constant for the game
+  // Whether OUR team is home or away this game. Sets the starting `half`
+  // automatically: home team pitches first (opponent bats top); away team
+  // bats first (opponent bats bottom). Informational after that — the
+  // manual top/bottom toggle still exists for correcting mistakes or
+  // unusual innings. Undefined on games created before this field existed.
+  homeAway?: 'home' | 'away'
   updatedAt: number
   syncStatus: SyncStatus
   syncedAt?: number | null

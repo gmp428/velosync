@@ -194,6 +194,23 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 
 /* Live game */
 .count-display { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.05em; }
+
+.inning-indicator { display: inline-flex; align-items: center; gap: 3px; }
+.inning-triangle {
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+}
+.inning-triangle.up { border-bottom: 9px solid var(--text); }
+.inning-triangle.down { border-top: 9px solid var(--text); }
+.inning-number { font-weight: 700; font-size: 1rem; }
+
+.outs-tracker { display: inline-flex; gap: 4px; }
+.out-dot {
+  width: 11px; height: 11px; border-radius: 50%;
+  border: 1.5px solid var(--text); background: transparent;
+}
+.out-dot.filled { background: var(--text); }
 .chip.small-chip { min-height: 32px; padding: 5px 12px; font-size: 0.8rem; }
 
 /* Per-pitch scouting buttons */
