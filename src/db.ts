@@ -31,6 +31,20 @@ function hydrateSync<T extends object>(row: T): T & SyncMeta {
   }
 }
 
+// Backups made before sortIndex existed have no batting-order field. Assign
+// each opponent's batters 0,1,2... in their existing array order (same
+// insertion-order fallback the schema v4 migration uses) rather than leaving
+// sortIndex undefined, which would break sorts on import.
+function hydrateBatterSortIndex<T extends { id: string; opponentId: string; sortIndex?: number }>(rows: T[]): T[] {
+  const counters = new Map<string, number>()
+  return rows.map((row) => {
+    if (row.sortIndex != null) return row
+    const next = counters.get(row.opponentId) ?? 0
+    counters.set(row.opponentId, next + 1)
+    return { ...row, sortIndex: next }
+  })
+}
+
 // ---------- Types ----------
 
 export interface Opponent {
@@ -50,6 +64,10 @@ export interface Batter {
   number?: string
   bats: 'L' | 'R'
   notes?: string
+  // Position in this opponent's saved batting order (0-based, ascending).
+  // Drives both the roster screen's display order and a new game's default
+  // lineup when there's no prior finished-game lineup to inherit from.
+  sortIndex: number
   updatedAt: number
   syncStatus: SyncStatus
   syncedAt?: number | null
@@ -289,6 +307,36 @@ db.version(3).stores({
   }
 })
 
+// v4 adds a persisted batting-order position (sortIndex) to batters, so the
+// roster screen's drag-to-reorder has somewhere to save its state, and a new
+// game's default lineup can respect the coach's saved order (instead of
+// falling back to raw insertion order) when there's no prior finished game to
+// inherit a lineup from. Existing rows have no sortIndex yet — assign each
+// opponent's batters 0,1,2... in their current primary-key/insertion order so
+// pre-migration rosters keep a stable (if previously-implicit) order rather
+// than colliding on index 0 or breaking sorts downstream.
+db.version(4).stores({
+  batters: 'id, opponentId, updatedAt, syncStatus, sortIndex',
+}).upgrade(async (tx) => {
+  const batters = await tx.table('batters').toArray()
+  const byOpponent = new Map<string, typeof batters>()
+  for (const b of batters) {
+    const list = byOpponent.get(b.opponentId) ?? []
+    list.push(b)
+    byOpponent.set(b.opponentId, list)
+  }
+  for (const list of byOpponent.values()) {
+    // `batters` was loaded in primary-key order already (Dexie's default),
+    // which is the same insertion order the old fallback used — so this
+    // preserves whatever order coaches were already implicitly relying on.
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].sortIndex == null) {
+        await tx.table('batters').update(list[i].id, { sortIndex: i })
+      }
+    }
+  }
+})
+
 // Discard the legacy integer-keyed database from before the UUID switch.
 Dexie.delete('pitch-tracker').catch(() => {})
 
@@ -396,7 +444,7 @@ export async function importAll(data: BackupFile): Promise<void> {
       db.settings.clear(),
     ])
     await db.opponents.bulkAdd(data.opponents.map(hydrateSync))
-    await db.batters.bulkAdd(data.batters.map(hydrateSync))
+    await db.batters.bulkAdd(hydrateBatterSortIndex(data.batters.map(hydrateSync)))
     await db.pitchers.bulkAdd(data.pitchers.map(hydrateSync))
     await db.pitchTypes.bulkAdd(data.pitchTypes.map(hydrateSync))
     await db.games.bulkAdd(data.games.map(hydrateSync))
@@ -417,14 +465,47 @@ export async function defaultLineup(opponentId: string): Promise<string[]> {
   const roster = await db.batters.where('opponentId').equals(opponentId).toArray()
   const rosterIds = roster.map((b) => b.id)
   const rosterSet = new Set(rosterIds)
+  // Fallback order when there's no prior lineup to inherit: the coach's saved
+  // batting order (sortIndex), not raw insertion order.
+  const bySortIndex = [...roster].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)).map((b) => b.id)
 
   const games = await db.games.where('opponentId').equals(opponentId).toArray()
   const prev = games
     .filter((g) => g.status === 'finished' && g.lineup && g.lineup.length > 0)
     .sort((a, b) => b.updatedAt - a.updatedAt)[0]
 
-  if (!prev?.lineup) return rosterIds
+  if (!prev?.lineup) return bySortIndex
   const kept = prev.lineup.filter((id) => rosterSet.has(id))
-  const appended = rosterIds.filter((id) => !kept.includes(id))
+  const appended = bySortIndex.filter((id) => !kept.includes(id))
   return [...kept, ...appended]
+}
+
+// When a game ends, its final lineup (the order actually batted, including any
+// mid-game drag reordering) becomes the roster's new baseline order — so the
+// roster screen and the next game's default both reflect the most recently
+// PLAYED order, not just the most recently built one. Only batters present in
+// `lineup` are touched; a batter added to the roster after this game (so not
+// in the lineup) keeps its existing sortIndex and still sorts to the end.
+export async function persistLineupToRoster(lineup: string[]): Promise<void> {
+  await db.transaction('rw', db.batters, async () => {
+    const lineupSet = new Set(lineup)
+    // Batters not in this lineup (e.g. added to the roster after this game
+    // started) keep their relative order but must be pushed past the lineup
+    // batters' new indices so nothing collides with 0..lineup.length-1.
+    const opponentId = (await db.batters.get(lineup[0]))?.opponentId
+    const others = opponentId
+      ? (await db.batters.where('opponentId').equals(opponentId).toArray())
+          .filter((b) => !lineupSet.has(b.id))
+          .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0))
+      : []
+
+    for (let i = 0; i < lineup.length; i++) {
+      const batter = await db.batters.get(lineup[i])
+      if (!batter) continue // batter removed from roster since the game started
+      await db.batters.update(lineup[i], { sortIndex: i, updatedAt: now(), ...pendingSync() })
+    }
+    for (let i = 0; i < others.length; i++) {
+      await db.batters.update(others[i].id, { sortIndex: lineup.length + i, updatedAt: now(), ...pendingSync() })
+    }
+  })
 }

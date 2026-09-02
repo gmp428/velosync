@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CAPTURE_PRESETS, db, displayName, getSettings, newId, now, pendingSync, pitcherArsenal, resultLabel, zoneLabel,
+  CAPTURE_PRESETS, db, displayName, getSettings, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
   type AtBatOutcome, type Batter, type InPlayOutcome, type Pitch, type PitchResult, type Zone,
 } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
@@ -241,6 +241,9 @@ export default function LiveGame() {
       if (n === 0) await db.atBats.delete(open.id)
     }
     await db.games.update(gameId, { status: 'finished', updatedAt: now(), ...pendingSync() })
+    // The order actually batted (including any mid-game drag reordering)
+    // becomes the roster's new baseline order for next time.
+    if (order.length > 0) await persistLineupToRoster(order)
     navigate(`/games/${gameId}`)
   }
 
