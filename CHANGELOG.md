@@ -5,7 +5,13 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 ## [Unreleased]
 
 ### Planned
-- Mid-game substitution: swap in a player from the full roster (not just today's starting lineup) without leaving the live game; "add player" shortcut that returns to the same in-progress game; full substitution history tracked (who/when/inning) for scouting and stats.
+- 9-max active lineup selection with a "ghost out" mechanic for vacated slots.
+
+## [0.3.0] — 2026-09-02
+
+### Added
+- Mid-game player substitution: swap in a replacement from the full team roster (not just today's starting lineup) for any current batter. Substitution only affects future turns in the order — past at-bats are never rewritten. Includes an "add player" shortcut if the substitute isn't rostered yet, which returns to the same in-progress game afterward with no lost state. Full substitution history (who/out, who/in, inning, timestamp) is now tracked and shown on the post-game box score screen.
+— PR #7
 
 ## [0.2.0] — 2026-09-02
 
