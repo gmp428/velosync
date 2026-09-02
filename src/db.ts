@@ -53,6 +53,15 @@ export interface Opponent {
   updatedAt: number
   syncStatus: SyncStatus
   syncedAt?: number | null
+  // Whether this opponent's baseline batting order (built on the roster
+  // screen) plans a "ghost out" placeholder in the 9th spot — for a league
+  // that enforces an automatic out for a short-handed 9th slot when the
+  // team has exactly 8 real active batters. Draggable like a real batter
+  // in the lineup editor; carried into a new game's default lineup
+  // alongside sortIndex. Only ever offered/settable when activeToday
+  // batters number exactly 8 — see Roster.tsx.
+  ghostOutEnabled?: boolean
+  ghostOutSortIndex?: number // position among batters' sortIndex values
 }
 
 export interface Batter {
@@ -533,12 +542,19 @@ export async function importAll(data: BackupFile): Promise<void> {
 // sentinels from a prior game are never carried forward — each game's
 // vacancies are decided fresh.
 export async function defaultLineup(opponentId: string): Promise<string[]> {
+  const opponent = await db.opponents.get(opponentId)
   const roster = await db.batters.where('opponentId').equals(opponentId).toArray()
   const active = roster.filter((b) => b.activeToday !== false).slice(0, MAX_ACTIVE_LINEUP)
   const activeSet = new Set(active.map((b) => b.id))
   // Fallback order when there's no prior lineup to inherit: the coach's saved
-  // batting order (sortIndex), not raw insertion order.
-  const bySortIndex = [...active].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)).map((b) => b.id)
+  // batting order (sortIndex), not raw insertion order. Splices in the
+  // roster-level planned ghost-out slot (see Opponent.ghostOutEnabled) if set.
+  const items: Array<{ id: string; sortIndex: number }> = active.map((b) => ({ id: b.id, sortIndex: b.sortIndex ?? 0 }))
+  if (opponent?.ghostOutEnabled) {
+    items.push({ id: GHOST_OUT, sortIndex: opponent.ghostOutSortIndex ?? Infinity })
+  }
+  items.sort((a, b) => a.sortIndex - b.sortIndex)
+  const bySortIndex = items.map((i) => i.id)
 
   const games = await db.games.where('opponentId').equals(opponentId).toArray()
   const prev = games

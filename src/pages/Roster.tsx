@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, MAX_ACTIVE_LINEUP, newId, now, pendingSync } from '../db'
+import { db, displayName, GHOST_OUT, MAX_ACTIVE_LINEUP, newId, now, pendingSync } from '../db'
 import LineupEditor from '../components/LineupEditor'
 
 export default function Roster() {
@@ -22,7 +22,18 @@ export default function Roster() {
   // screen only sets the baseline order/roster for the *next* game.
   const activeBatters = batters?.filter((b) => b.activeToday !== false) ?? []
   const activeCount = activeBatters.length
-  const battingOrder = activeBatters.map((b) => b.id)
+  // A roster-level "planned" ghost-out slot fills out the 9th spot for a
+  // league that requires an automatic out there when the team is one short.
+  // Only offered when exactly 8 real batters are checked in — with 9 there's
+  // no room for it, and below 8 the coach is already short more than one.
+  const ghostEnabled = opponent?.ghostOutEnabled === true && activeCount === 8
+  const battingOrder: string[] = activeBatters.map((b) => b.id)
+  if (ghostEnabled) {
+    const idx = opponent?.ghostOutSortIndex ?? Infinity
+    const insertAt = activeBatters.findIndex((b) => (b.sortIndex ?? 0) > idx)
+    if (insertAt === -1) battingOrder.push(GHOST_OUT)
+    else battingOrder.splice(insertAt, 0, GHOST_OUT)
+  }
 
   // The roster list below is a separate, stable reference list — always
   // alphabetical by last name (falling back to first name), independent
@@ -71,11 +82,33 @@ export default function Roster() {
     resetForm()
   }
 
+  // Persists both the real batters' sortIndex AND (if a ghost slot is
+  // present) its position, expressed as a sortIndex value between its
+  // neighbors — so dragging the ghost slot around the order sticks.
   const reorder = async (order: string[]) => {
+    const realOrder = order.filter((oid) => oid !== GHOST_OUT)
     await db.transaction('rw', db.batters, async () => {
-      for (let i = 0; i < order.length; i++) {
-        await db.batters.update(order[i], { sortIndex: i, updatedAt: now(), ...pendingSync() })
+      for (let i = 0; i < realOrder.length; i++) {
+        await db.batters.update(realOrder[i], { sortIndex: i, updatedAt: now(), ...pendingSync() })
       }
+    })
+    const ghostAt = order.indexOf(GHOST_OUT)
+    if (ghostAt !== -1) {
+      // Position the ghost slot just after the real batter now sitting
+      // before it in the dragged order (or before index 0 if dragged to top).
+      const ghostSortIndex = ghostAt === 0 ? -0.5 : ghostAt - 0.5
+      await db.opponents.update(opponentId, { ghostOutSortIndex: ghostSortIndex, updatedAt: now(), ...pendingSync() })
+    }
+  }
+
+  // Toggle the roster-level planned ghost-out slot on/off. Only offered
+  // (and meaningful) at exactly 8 active batters — see `ghostEnabled` above.
+  const setGhostEnabled = async (enabled: boolean) => {
+    await db.opponents.update(opponentId, {
+      ghostOutEnabled: enabled,
+      ghostOutSortIndex: enabled ? activeCount - 0.5 : undefined,
+      updatedAt: now(),
+      ...pendingSync(),
     })
   }
 
@@ -151,12 +184,28 @@ export default function Roster() {
           play (rules vary; this isn't blocked, just a heads up).
         </p>
       )}
+      {activeCount === 8 && (
+        <label className="row" style={{ alignItems: 'center', gap: 8, marginTop: -8 }}>
+          <input
+            type="checkbox"
+            checked={opponent?.ghostOutEnabled === true}
+            onChange={(e) => setGhostEnabled(e.target.checked)}
+            style={{ width: 20, height: 20, flexShrink: 0 }}
+          />
+          <span className="muted">
+            👻 Add a ghost out for the 9th spot — some leagues require an
+            automatic out there when you're one player short.
+          </span>
+        </label>
+      )}
       {battingOrder.length > 0 ? (
         <LineupEditor
           order={battingOrder}
           batters={activeBatters}
           onChange={reorder}
-          onRemoveBatter={(batterId) => setActive(batterId, false)}
+          onRemoveBatter={(batterId) =>
+            batterId === GHOST_OUT ? setGhostEnabled(false) : setActive(batterId, false)
+          }
         />
       ) : (
         <p className="empty">Check batters into today's lineup below to set a batting order.</p>

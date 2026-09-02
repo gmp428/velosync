@@ -170,35 +170,57 @@ export default function LiveGame() {
   // player currently at bat is the one being replaced, their in-progress
   // at-bat (including any pitches already logged) is reassigned to the
   // incoming batter, same as the wrong-batter fix does.
-  const substitutePlayer = async (outgoingId: string, incomingId: string) => {
+  //
+  // Passing null for incomingId marks the vacated slot a "ghost out" instead
+  // of a real substitute (e.g. player is hurt, no sub available, league
+  // enforces an automatic out for the gap). If the outgoing player is
+  // currently at bat with NO pitches logged yet, that at-bat converts to a
+  // ghost-out immediately and the game auto-advances; if pitches were
+  // already thrown, that in-progress at-bat is left untouched (it's real
+  // scouting data) and only their future turns in the order become ghosts.
+  const substitutePlayer = async (outgoingId: string, incomingId: string | null) => {
     if (outgoingId === incomingId) {
       setSubstitutingFor(null)
       setShowSubstitutePanel(false)
       return
     }
+    const replacement = incomingId ?? GHOST_OUT
     const without = order.filter((idv) => idv !== incomingId)
     const at = without.indexOf(outgoingId)
     const newLineup = at === -1
-      ? [...without, incomingId]
-      : [...without.slice(0, at), incomingId, ...without.slice(at + 1)]
+      ? [...without, replacement]
+      : [...without.slice(0, at), replacement, ...without.slice(at + 1)]
     await db.transaction('rw', db.atBats, db.pitches, db.games, db.substitutions, async () => {
-      // If the outgoing player is at bat right now, hand off the in-progress
-      // at-bat (and any pitches already logged in it) to the incoming player.
-      if (openAtBat && openAtBat.batterId === outgoingId) {
-        await db.atBats.update(openAtBat.id, { batterId: incomingId, updatedAt: now(), ...pendingSync() })
-        await db.pitches.where('atBatId').equals(openAtBat.id).modify({ batterId: incomingId, updatedAt: now(), ...pendingSync() })
+      // If the outgoing player is at bat right now with no pitches thrown
+      // yet, hand off (real sub) or convert (ghost out) the in-progress
+      // at-bat. If pitches were already logged, leave that turn as real
+      // scouting data — only future turns become the substitute/ghost.
+      if (openAtBat && openAtBat.batterId === outgoingId && (abPitches?.length ?? 0) === 0) {
+        if (incomingId) {
+          await db.atBats.update(openAtBat.id, { batterId: incomingId, updatedAt: now(), ...pendingSync() })
+        } else {
+          await db.atBats.update(openAtBat.id, { batterId: GHOST_OUT, outcome: 'ghost_out', updatedAt: now(), ...pendingSync() })
+        }
       }
       await db.games.update(gameId, { lineup: newLineup, updatedAt: now(), ...pendingSync() })
-      await db.substitutions.add({
-        id: newId(),
-        gameId,
-        inning: curInning,
-        battedOutId: outgoingId,
-        battedInId: incomingId,
-        timestamp: Date.now(),
-        updatedAt: now(),
-        ...pendingSync(),
-      })
+      if (incomingId) {
+        await db.substitutions.add({
+          id: newId(),
+          gameId,
+          inning: curInning,
+          battedOutId: outgoingId,
+          battedInId: incomingId,
+          timestamp: Date.now(),
+          updatedAt: now(),
+          ...pendingSync(),
+        })
+      }
+      // The current turn just became a ghost out (no batter to bat it) —
+      // immediately advance to the next real batter, same as commit() does
+      // after any other out.
+      if (openAtBat && openAtBat.batterId === outgoingId && (abPitches?.length ?? 0) === 0 && !incomingId) {
+        await openNextRealAtBat(gameId, newLineup, at === -1 ? newLineup.length - 1 : at, game.currentPitcherId ?? openAtBat.pitcherId, curInning)
+      }
     })
     setSubstitutingFor(null)
     setShowSubstitutePanel(false)
@@ -516,6 +538,14 @@ export default function LiveGame() {
                       <span className="chev">›</span>
                     </button>
                   ))}
+                  <button
+                    className="list-item"
+                    style={{ width: '100%' }}
+                    onClick={() => substitutePlayer(outgoingId, null)}
+                  >
+                    <span>👻 No substitute — mark as ghost out</span>
+                    <span className="chev">›</span>
+                  </button>
                 </div>
                 <Link to={`/opponent/${game.opponentId}`} className="btn small">
                   + Add player to roster
