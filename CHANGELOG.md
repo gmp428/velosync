@@ -5,8 +5,21 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 ## [Unreleased]
 
 ### Planned
-- 9-max active lineup selection with a "ghost out" mechanic for vacated slots.
 - Out tracker, inning indicator, and home/away game start.
+- PR-preview seed dataset in an isolated database.
+
+## [0.5.0] — 2026-09-02
+
+### Added
+- 9-max active lineup selection: a checkbox per roster batter for "in today's lineup," capped at 9 with no minimum enforced, synced live with the drag-order batting order. Checking a batter sends them to the bottom of the order automatically.
+- "Ghost Batter (Auto Out)" mechanic — a real, named rule in local/rec-ball leagues: a roster-level placeholder for a short-handed 9th spot (offered at exactly 8 active players), draggable like a real batter in the order. Also available mid-game via the Substitute panel ("No substitute — mark as Ghost Batter") for an injury/no-sub scenario. When the batting order reaches a ghost slot, the game auto-logs a scoreless out and skips ahead with no picker or pitch-logging needed.
+- Inline edit-batter form — tapping Edit on a roster row now opens the form directly under that row instead of jumping to the bottom of the page.
+
+### Fixed
+- Page scroll was blocked when touching anywhere on a batting-order row (not just the drag handle) — could get stuck unable to scroll past the lineup section.
+- The ✕ on a ghost-out slot didn't actually remove it (silently recomputed back into the order).
+- A ghost-out row displayed "?" instead of its label, due to a dnd-kit sortable-ID mismatch in the ghost-detection check.
+— PR #8
 
 ## [0.4.0] — 2026-09-02
 
