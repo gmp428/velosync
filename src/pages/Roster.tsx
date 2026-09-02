@@ -167,28 +167,60 @@ export default function Roster() {
         {rosterList.map((b) => {
           const isActive = b.activeToday !== false
           return (
-            <div key={b.id} className="list-item">
-              <input
-                type="checkbox"
-                aria-label={`${displayName(b)} in today's lineup`}
-                checked={isActive}
-                disabled={!isActive && activeCount >= MAX_ACTIVE_LINEUP}
-                onChange={(e) => setActive(b.id, e.target.checked)}
-                style={{ width: 20, height: 20, flexShrink: 0 }}
-              />
-              <Link to={`/batter/${b.id}`} className="grow" style={{ color: 'var(--text)' }}>
-                {b.number ? `#${b.number} ` : ''}{displayName(b)} <span className="pill">bats {b.bats}</span>
-              </Link>
-              <button className="small" onClick={() => startEdit(b.id)}>Edit</button>
-              <button className="small danger" onClick={() => removeBatter(b.id)}>✕</button>
+            <div key={b.id}>
+              <div className="list-item">
+                <input
+                  type="checkbox"
+                  aria-label={`${displayName(b)} in today's lineup`}
+                  checked={isActive}
+                  disabled={!isActive && activeCount >= MAX_ACTIVE_LINEUP}
+                  onChange={(e) => setActive(b.id, e.target.checked)}
+                  style={{ width: 20, height: 20, flexShrink: 0 }}
+                />
+                <Link to={`/batter/${b.id}`} className="grow" style={{ color: 'var(--text)' }}>
+                  {b.number ? `#${b.number} ` : ''}{displayName(b)} <span className="pill">bats {b.bats}</span>
+                </Link>
+                <button className="small" onClick={() => (editingId === b.id ? resetForm() : startEdit(b.id))}>
+                  {editingId === b.id ? 'Close' : 'Edit'}
+                </button>
+                <button className="small danger" onClick={() => removeBatter(b.id)}>✕</button>
+              </div>
+              {editingId === b.id && (
+                <form onSubmit={save} className="card stack" style={{ marginTop: 8, marginBottom: 8 }}>
+                  <strong>Edit batter</strong>
+                  <div className="row">
+                    <div className="grow">
+                      <label>First name</label>
+                      <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First" />
+                    </div>
+                    <div className="grow">
+                      <label>Last name</label>
+                      <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last" />
+                    </div>
+                    <div style={{ width: 64 }}>
+                      <label>#</label>
+                      <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="12" inputMode="numeric" />
+                    </div>
+                  </div>
+                  <div className="row">
+                    <label style={{ margin: 0 }}>Bats:</label>
+                    <button type="button" className={`chip ${bats === 'R' ? 'on' : ''}`} onClick={() => setBats('R')}>Right</button>
+                    <button type="button" className={`chip ${bats === 'L' ? 'on' : ''}`} onClick={() => setBats('L')}>Left</button>
+                  </div>
+                  <div className="row">
+                    <button type="submit" className="primary grow">Save changes</button>
+                    <button type="button" onClick={resetForm}>Cancel</button>
+                  </div>
+                </form>
+              )}
             </div>
           )
         })}
       </div>
 
 
-      <form onSubmit={save} className="card stack">
-        <strong>{editingId !== null ? 'Edit batter' : 'Add batter'}</strong>
+      <form onSubmit={save} className="card stack" style={{ display: editingId !== null ? 'none' : undefined }}>
+        <strong>Add batter</strong>
         <div className="row">
           <div className="grow">
             <label>First name</label>
@@ -209,8 +241,7 @@ export default function Roster() {
           <button type="button" className={`chip ${bats === 'L' ? 'on' : ''}`} onClick={() => setBats('L')}>Left</button>
         </div>
         <div className="row">
-          <button type="submit" className="primary grow">{editingId !== null ? 'Save changes' : 'Add batter'}</button>
-          {editingId !== null && <button type="button" onClick={resetForm}>Cancel</button>}
+          <button type="submit" className="primary grow">Add batter</button>
         </div>
       </form>
 
