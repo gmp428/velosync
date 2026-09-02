@@ -15,6 +15,17 @@ export default function Roster() {
   const batters = battersRaw ? [...battersRaw].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)) : battersRaw
   const battingOrder = batters?.map((b) => b.id) ?? []
 
+  // The roster list below is a separate, stable reference list — always
+  // alphabetical by last name (falling back to first name), independent
+  // of the drag-to-reorder batting order above it.
+  const rosterList = batters
+    ? [...batters].sort((a, b) => {
+        const aName = (a.lastName?.trim() || a.firstName || a.name || '').toLowerCase()
+        const bName = (b.lastName?.trim() || b.firstName || b.name || '').toLowerCase()
+        return aName.localeCompare(bName)
+      })
+    : batters
+
   const [editingId, setEditingId] = useState<string | null>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -86,7 +97,7 @@ export default function Roster() {
     navigate('/')
   }
 
-  if (!opponent || !batters) return null
+  if (!opponent || !batters || !rosterList) return null
 
   return (
     <main>
@@ -103,7 +114,7 @@ export default function Roster() {
 
       <h2 style={{ marginTop: 20 }}>Roster</h2>
       <div className="list">
-        {batters.map((b) => (
+        {rosterList.map((b) => (
           <div key={b.id} className="list-item">
             <Link to={`/batter/${b.id}`} className="grow" style={{ color: 'var(--text)' }}>
               {b.number ? `#${b.number} ` : ''}{displayName(b)} <span className="pill">bats {b.bats}</span>
