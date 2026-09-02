@@ -365,19 +365,23 @@ export default function LiveGame() {
             <div className="card stack">
               <strong>Switch this at-bat to…</strong>
               <div className="list">
-                {roster.map((b) => (
-                  <button
-                    key={b.id}
-                    className="list-item"
-                    style={{ width: '100%' }}
-                    disabled={b.id === batter.id}
-                    onClick={() => switchBatter(b.id)}
-                  >
-                    <span>{b.number ? `#${b.number} ` : ''}{displayName(b)}</span>
-                    <span className="pill">bats {b.bats}</span>
-                    {b.id === batter.id ? <span className="chev">current</span> : <span className="chev">›</span>}
-                  </button>
-                ))}
+                {order.map((id) => {
+                  const b = roster.find((x) => x.id === id)
+                  if (!b) return null
+                  return (
+                    <button
+                      key={b.id}
+                      className="list-item"
+                      style={{ width: '100%' }}
+                      disabled={b.id === batter.id}
+                      onClick={() => switchBatter(b.id)}
+                    >
+                      <span>{b.number ? `#${b.number} ` : ''}{displayName(b)}</span>
+                      <span className="pill">bats {b.bats}</span>
+                      {b.id === batter.id ? <span className="chev">current</span> : <span className="chev">›</span>}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
