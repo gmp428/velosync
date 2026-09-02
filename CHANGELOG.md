@@ -4,11 +4,16 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
-### Fixed
-- Batting order set while building/editing a team now carries over correctly to a new game, instead of defaulting to raw database insertion order. Added a persisted `sortIndex` on each batter; wired the existing drag-and-drop reorder component into the team roster screen (previously reorder was only possible mid-game). The final batting order used at the end of a game now also overwrites the roster's baseline order, so the roster reflects how the team actually played most recently. — PR #6
-
 ### Planned
 - Mid-game substitution: swap in a player from the full roster (not just today's starting lineup) without leaving the live game; "add player" shortcut that returns to the same in-progress game; full substitution history tracked (who/when/inning) for scouting and stats.
+
+## [0.2.0] — 2026-09-02
+
+### Fixed
+- Batting order set while building/editing a team now carries over correctly to a new game, instead of defaulting to raw database insertion order. Added a persisted `sortIndex` on each batter; wired the existing drag-and-drop reorder component into the team roster screen (previously reorder was only possible mid-game). The final batting order used at the end of a game now also overwrites the roster's baseline order, so the roster reflects how the team actually played most recently.
+- The roster list itself (below the batting-order drag list) no longer reshuffles when you reorder the batting order — it's now a stable, alphabetical-by-last-name reference list, independent of play order.
+- The "wrong batter — switch to…" picker during a live game now follows the game's actual current batting order (including any mid-game reorders), instead of raw unsorted roster order.
+— PR #6
 
 ## [0.1.0] — 2026-08-31
 
