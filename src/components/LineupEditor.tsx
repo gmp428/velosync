@@ -33,7 +33,7 @@ function Row({
     <div ref={setNodeRef} style={style} className={`list-item lineup-row ${isGhost ? 'ghost-row' : ''}`}>
       <span className="lineup-num">{index + 1}</span>
       {isGhost ? (
-        <span className="grow muted" style={{ fontStyle: 'italic' }}>👻 Ghost out — automatic scoreless out</span>
+        <span className="grow muted" style={{ fontStyle: 'italic' }}>Ghost Batter (Auto Out)</span>
       ) : (
         <>
           <span className="grow">{batter?.number ? `#${batter.number} ` : ''}{displayName(batter)}</span>
@@ -124,7 +124,7 @@ export default function LineupEditor({
       </DndContext>
       {allowGhostAdd && (
         <button type="button" className="small" onClick={addGhost}>
-          + Ghost out slot
+          + Ghost Batter (Auto Out) slot
         </button>
       )}
     </div>

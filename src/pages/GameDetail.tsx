@@ -93,7 +93,7 @@ export default function GameDetail() {
             <div className="row spread">
               <strong>
                 {i + 1}. {isGhost
-                  ? <span style={{ fontStyle: 'italic' }}>👻 Ghost out</span>
+                  ? <span style={{ fontStyle: 'italic' }}>Ghost Batter (Auto Out)</span>
                   : <Link to={`/batter/${ab.batterId}`}>{displayName(batter)}</Link>}
               </strong>
               <span>{ab.outcome ? outcomeLabel(ab.outcome) : 'In progress'}</span>

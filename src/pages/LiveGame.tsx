@@ -388,8 +388,8 @@ export default function LiveGame() {
         <div className="card stack">
           <strong>Batting order — drag ≡ to reorder</strong>
           <p className="muted" style={{ margin: 0 }}>
-            ✕ benches a batter for today (unchecks them on the roster too). Add a
-            👻 Ghost out slot for a vacancy with no sub — it auto-logs a scoreless
+            ✕ benches a batter for today (unchecks them on the roster too).
+            Add a Ghost Batter (Auto Out) slot for a vacancy with no sub — it auto-logs a scoreless
             out and skips ahead when the order reaches it.
           </p>
           <LineupEditor
@@ -543,7 +543,7 @@ export default function LiveGame() {
                     style={{ width: '100%' }}
                     onClick={() => substitutePlayer(outgoingId, null)}
                   >
-                    <span>👻 No substitute — mark as ghost out</span>
+                    <span>No substitute — mark as Ghost Batter (Auto Out)</span>
                     <span className="chev">›</span>
                   </button>
                 </div>

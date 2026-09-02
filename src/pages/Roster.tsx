@@ -193,7 +193,7 @@ export default function Roster() {
             style={{ width: 20, height: 20, flexShrink: 0 }}
           />
           <span className="muted">
-            👻 Add a ghost out for the 9th spot — some leagues require an
+            Add a Ghost Batter (Auto Out) for the 9th spot — some leagues require an
             automatic out there when you're one player short.
           </span>
         </label>
