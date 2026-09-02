@@ -20,8 +20,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: [
-        'logos/velosync-vs-mark.jpeg',
-        'logos/velosync-horizontal.jpeg',
+        'logos/velosync-vs-mark.png',
+        'logos/velosync-horizontal.png',
       ],
       manifest: {
         id: base,
@@ -37,15 +37,21 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           {
-            src: 'logos/velosync-vs-mark.jpeg',
-            sizes: '1152x1728',
-            type: 'image/jpeg',
+            src: 'pwa-192.png',
+            sizes: '192x192',
+            type: 'image/png',
             purpose: 'any',
           },
           {
-            src: 'logos/velosync-vs-mark.jpeg',
-            sizes: '1152x1728',
-            type: 'image/jpeg',
+            src: 'pwa-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: 'pwa-512.png',
+            sizes: '512x512',
+            type: 'image/png',
             purpose: 'maskable',
           },
         ],
