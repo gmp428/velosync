@@ -15,20 +15,21 @@ import { displayName, GHOST_OUT, type Batter } from '../db'
 // Touch-capable so it works on a phone at the field.
 
 function Row({
-  id, batter, index, onRemove,
+  sortId, rawId, batter, index, onRemove,
 }: {
-  id: string
+  sortId: string
+  rawId: string
   batter: Batter | undefined
   index: number
   onRemove: (id: string) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortId })
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
   }
-  const isGhost = id === GHOST_OUT
+  const isGhost = rawId === GHOST_OUT
   return (
     <div ref={setNodeRef} style={style} className={`list-item lineup-row ${isGhost ? 'ghost-row' : ''}`}>
       <span className="lineup-num">{index + 1}</span>
@@ -44,7 +45,7 @@ function Row({
         type="button"
         className="small danger"
         aria-label={isGhost ? 'Remove ghost-out slot' : `Remove ${displayName(batter)} from lineup`}
-        onClick={() => onRemove(id)}
+        onClick={() => onRemove(sortId)}
       >
         ✕
       </button>
@@ -117,7 +118,7 @@ export default function LineupEditor({
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
           <div className="list">
             {order.map((id, i) => (
-              <Row key={sortIds[i]} id={sortIds[i]} batter={byId.get(id)} index={i} onRemove={removeAt} />
+              <Row key={sortIds[i]} sortId={sortIds[i]} rawId={id} batter={byId.get(id)} index={i} onRemove={removeAt} />
             ))}
           </div>
         </SortableContext>
