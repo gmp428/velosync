@@ -14,10 +14,12 @@ export default function GameDetail() {
   const batters = useLiveQuery(() => db.batters.toArray(), [])
   const pitchers = useLiveQuery(() => db.pitchers.toArray(), [])
   const pitchTypes = useLiveQuery(() => db.pitchTypes.toArray(), [])
+  const substitutions = useLiveQuery(() => db.substitutions.where('gameId').equals(gameId).toArray(), [gameId])
 
   if (!game || !opponent || !atBats || !pitches || !batters || !pitchers || !pitchTypes) return null
 
   const ordered = [...atBats].sort((a, b) => a.startedAt - b.startedAt)
+  const subsOrdered = [...(substitutions ?? [])].sort((a, b) => a.timestamp - b.timestamp)
 
   const halfLabel = (game.half ?? 'top') === 'top' ? 'Top' : 'Bot'
   const byInning = new Map<number, number>()
@@ -63,6 +65,23 @@ export default function GameDetail() {
       )}
 
       {ordered.length === 0 && <p className="empty">Nothing logged in this game.</p>}
+
+      {subsOrdered.length > 0 && (
+        <>
+          <h2>Substitutions</h2>
+          <div className="stack">
+            {subsOrdered.map((s) => {
+              const outB = batters.find((b) => b.id === s.battedOutId)
+              const inB = batters.find((b) => b.id === s.battedInId)
+              return (
+                <div key={s.id} className="muted">
+                  {halfLabel} {s.inning} — {displayName(inB)} in for {displayName(outB)}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
 
       {ordered.map((ab, i) => {
         const batter = batters.find((b) => b.id === ab.batterId)

@@ -134,6 +134,23 @@ export interface Game {
   syncedAt?: number | null
 }
 
+// A real roster change mid-game: one player replaces another going forward in
+// the batting order. Distinct from the "wrong batter?" switch in LiveGame
+// (which just corrects a mis-logged current at-bat and touches no history) —
+// a Substitution is a persisted event for scouting/stats: who came out, who
+// came in, what inning, and when. Never mutates past at-bats/pitches.
+export interface Substitution {
+  id: string
+  gameId: string
+  inning: number // inning the substitution took effect
+  battedOutId: string // batterId who was replaced
+  battedInId: string // batterId who came in
+  timestamp: number
+  updatedAt: number
+  syncStatus: SyncStatus
+  syncedAt?: number | null
+}
+
 export type AtBatOutcome =
   | 'walk'
   | 'strikeout'
@@ -269,6 +286,7 @@ export const db = new Dexie('pitch-tracker-v2') as Dexie & {
   atBats: EntityTable<AtBat, 'id'>
   pitches: EntityTable<Pitch, 'id'>
   settings: EntityTable<AppSettings, 'id'>
+  substitutions: EntityTable<Substitution, 'id'>
 }
 
 db.version(1).stores({
@@ -337,10 +355,17 @@ db.version(4).stores({
   }
 })
 
+// v5 adds a Substitution table: a persisted record of mid-game roster
+// changes (who was replaced, who came in, what inning, when) for future
+// scouting/stats use. Purely additive — no existing store is touched.
+db.version(5).stores({
+  substitutions: 'id, gameId, inning, battedOutId, battedInId, timestamp, updatedAt, syncStatus',
+})
+
 // Discard the legacy integer-keyed database from before the UUID switch.
 Dexie.delete('pitch-tracker').catch(() => {})
 
-const SYNC_TABLES = ['opponents', 'batters', 'pitchers', 'pitchTypes', 'games', 'atBats', 'pitches'] as const
+const SYNC_TABLES = ['opponents', 'batters', 'pitchers', 'pitchTypes', 'games', 'atBats', 'pitches', 'substitutions'] as const
 
 for (const name of SYNC_TABLES) {
   const table = db.table(name)
@@ -405,7 +430,7 @@ export function outcomeLabel(o: AtBatOutcome | InPlayOutcome): string {
 
 export interface BackupFile {
   app: 'pitch-tracker'
-  version: number // 2 = pre-sync-meta; 3 = includes syncStatus/syncedAt
+  version: number // 2 = pre-sync-meta; 3 = includes syncStatus/syncedAt; 4 = includes substitutions
   exportedAt: string
   opponents: Opponent[]
   batters: Batter[]
@@ -415,6 +440,7 @@ export interface BackupFile {
   atBats: AtBat[]
   pitches: Pitch[]
   settings?: AppSettings[] // optional: older backups predate app settings
+  substitutions?: Substitution[] // optional: older backups predate substitutions
 }
 
 export async function exportAll(): Promise<BackupFile> {
@@ -430,6 +456,7 @@ export async function exportAll(): Promise<BackupFile> {
     atBats: await db.atBats.toArray(),
     pitches: await db.pitches.toArray(),
     settings: await db.settings.toArray(),
+    substitutions: await db.substitutions.toArray(),
   }
 }
 
@@ -437,11 +464,11 @@ export async function importAll(data: BackupFile): Promise<void> {
   if (data.app !== 'pitch-tracker' || !Array.isArray(data.pitches)) {
     throw new Error('This file does not look like a VeloSync backup.')
   }
-  await db.transaction('rw', [db.opponents, db.batters, db.pitchers, db.pitchTypes, db.games, db.atBats, db.pitches, db.settings], async () => {
+  await db.transaction('rw', [db.opponents, db.batters, db.pitchers, db.pitchTypes, db.games, db.atBats, db.pitches, db.settings, db.substitutions], async () => {
     await Promise.all([
       db.opponents.clear(), db.batters.clear(), db.pitchers.clear(),
       db.pitchTypes.clear(), db.games.clear(), db.atBats.clear(), db.pitches.clear(),
-      db.settings.clear(),
+      db.settings.clear(), db.substitutions.clear(),
     ])
     await db.opponents.bulkAdd(data.opponents.map(hydrateSync))
     await db.batters.bulkAdd(hydrateBatterSortIndex(data.batters.map(hydrateSync)))
@@ -453,6 +480,8 @@ export async function importAll(data: BackupFile): Promise<void> {
     // Older backups predate settings — restore the row if present, else leave
     // the store empty so getSettings() falls back to the default.
     if (data.settings?.length) await db.settings.bulkAdd(data.settings)
+    // Older backups predate substitutions — same fallback.
+    if (data.substitutions?.length) await db.substitutions.bulkAdd(data.substitutions.map(hydrateSync))
   })
 }
 
