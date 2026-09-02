@@ -2,13 +2,29 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, displayName, newId, now, pendingSync } from '../db'
+import LineupEditor from '../components/LineupEditor'
 
 export default function Roster() {
   const { id } = useParams()
   const opponentId = id!
   const navigate = useNavigate()
   const opponent = useLiveQuery(() => db.opponents.get(opponentId), [opponentId])
-  const batters = useLiveQuery(() => db.batters.where('opponentId').equals(opponentId).toArray(), [opponentId])
+  const battersRaw = useLiveQuery(() => db.batters.where('opponentId').equals(opponentId).toArray(), [opponentId])
+  // Display (and lineup-default) order always follows the saved sortIndex, not
+  // whatever order Dexie happened to return rows in.
+  const batters = battersRaw ? [...battersRaw].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)) : battersRaw
+  const battingOrder = batters?.map((b) => b.id) ?? []
+
+  // The roster list below is a separate, stable reference list — always
+  // alphabetical by last name (falling back to first name), independent
+  // of the drag-to-reorder batting order above it.
+  const rosterList = batters
+    ? [...batters].sort((a, b) => {
+        const aName = (a.lastName?.trim() || a.firstName || a.name || '').toLowerCase()
+        const bName = (b.lastName?.trim() || b.firstName || b.name || '').toLowerCase()
+        return aName.localeCompare(bName)
+      })
+    : batters
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [firstName, setFirstName] = useState('')
@@ -32,9 +48,22 @@ export default function Roster() {
     if (editingId !== null) {
       await db.batters.update(editingId, fields)
     } else {
-      await db.batters.add({ id: newId(), opponentId, ...fields })
+      // Append to the end of the current batting order (next free sortIndex),
+      // never left undefined or colliding with an existing batter's slot.
+      const nextSortIndex = batters && batters.length > 0
+        ? Math.max(...batters.map((b) => b.sortIndex ?? 0)) + 1
+        : 0
+      await db.batters.add({ id: newId(), opponentId, sortIndex: nextSortIndex, ...fields })
     }
     resetForm()
+  }
+
+  const reorder = async (order: string[]) => {
+    await db.transaction('rw', db.batters, async () => {
+      for (let i = 0; i < order.length; i++) {
+        await db.batters.update(order[i], { sortIndex: i, updatedAt: now(), ...pendingSync() })
+      }
+    })
   }
 
   const startEdit = (batterId: string) => {
@@ -68,15 +97,24 @@ export default function Roster() {
     navigate('/')
   }
 
-  if (!opponent || !batters) return null
+  if (!opponent || !batters || !rosterList) return null
 
   return (
     <main>
       <h1>{opponent.name}</h1>
       <p className="muted">Tap a batter to see their scouting report.</p>
 
+      <h2 style={{ marginTop: 20 }}>Batting order — drag ≡ to reorder</h2>
+      <p className="muted">Sets the default lineup order for this team's next game.</p>
+      {batters.length > 0 ? (
+        <LineupEditor order={battingOrder} batters={batters} onChange={reorder} />
+      ) : (
+        <p className="empty">Add batters below to set a batting order.</p>
+      )}
+
+      <h2 style={{ marginTop: 20 }}>Roster</h2>
       <div className="list">
-        {batters.map((b) => (
+        {rosterList.map((b) => (
           <div key={b.id} className="list-item">
             <Link to={`/batter/${b.id}`} className="grow" style={{ color: 'var(--text)' }}>
               {b.number ? `#${b.number} ` : ''}{displayName(b)} <span className="pill">bats {b.bats}</span>

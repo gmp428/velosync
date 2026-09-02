@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CAPTURE_PRESETS, db, displayName, getSettings, newId, now, pendingSync, pitcherArsenal, resultLabel, zoneLabel,
+  CAPTURE_PRESETS, db, displayName, getSettings, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
   type AtBatOutcome, type Batter, type InPlayOutcome, type Pitch, type PitchResult, type Zone,
 } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
@@ -241,6 +241,9 @@ export default function LiveGame() {
       if (n === 0) await db.atBats.delete(open.id)
     }
     await db.games.update(gameId, { status: 'finished', updatedAt: now(), ...pendingSync() })
+    // The order actually batted (including any mid-game drag reordering)
+    // becomes the roster's new baseline order for next time.
+    if (order.length > 0) await persistLineupToRoster(order)
     navigate(`/games/${gameId}`)
   }
 
@@ -362,19 +365,23 @@ export default function LiveGame() {
             <div className="card stack">
               <strong>Switch this at-bat to…</strong>
               <div className="list">
-                {roster.map((b) => (
-                  <button
-                    key={b.id}
-                    className="list-item"
-                    style={{ width: '100%' }}
-                    disabled={b.id === batter.id}
-                    onClick={() => switchBatter(b.id)}
-                  >
-                    <span>{b.number ? `#${b.number} ` : ''}{displayName(b)}</span>
-                    <span className="pill">bats {b.bats}</span>
-                    {b.id === batter.id ? <span className="chev">current</span> : <span className="chev">›</span>}
-                  </button>
-                ))}
+                {order.map((id) => {
+                  const b = roster.find((x) => x.id === id)
+                  if (!b) return null
+                  return (
+                    <button
+                      key={b.id}
+                      className="list-item"
+                      style={{ width: '100%' }}
+                      disabled={b.id === batter.id}
+                      onClick={() => switchBatter(b.id)}
+                    >
+                      <span>{b.number ? `#${b.number} ` : ''}{displayName(b)}</span>
+                      <span className="pill">bats {b.bats}</span>
+                      {b.id === batter.id ? <span className="chev">current</span> : <span className="chev">›</span>}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
