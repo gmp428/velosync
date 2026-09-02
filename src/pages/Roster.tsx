@@ -131,6 +131,12 @@ export default function Roster() {
       <p className="muted">
         {activeCount}/{MAX_ACTIVE_LINEUP} checked in for today. Sets the default lineup order for this team's next game.
       </p>
+      {activeCount > 0 && activeCount < 8 && (
+        <p className="warning" style={{ marginTop: -8 }}>
+          Only {activeCount} checked in — most leagues require at least 8 to
+          play (rules vary; this isn't blocked, just a heads up).
+        </p>
+      )}
       {battingOrder.length > 0 ? (
         <LineupEditor
           order={battingOrder}

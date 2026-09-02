@@ -111,6 +111,8 @@ button, .btn {
 button:active, .btn:active { transform: scale(0.98); }
 button.primary, .btn.primary { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; font-weight: 600; }
 button.danger { border-color: #e0a3a3; color: var(--bad); }
+
+.warning { color: #a66b00; font-size: 0.9rem; }
 button.small { min-height: 34px; padding: 6px 10px; font-size: 0.85rem; border-radius: 8px; }
 button:disabled { opacity: 0.45; cursor: default; }
 
