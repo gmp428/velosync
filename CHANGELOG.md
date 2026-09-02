@@ -6,6 +6,13 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ### Planned
 - 9-max active lineup selection with a "ghost out" mechanic for vacated slots.
+- Out tracker, inning indicator, and home/away game start.
+
+## [0.4.0] — 2026-09-02
+
+### Changed
+- Replaced placeholder logo JPEGs with the final traced brand assets: sharp home-plate badge outline, straight-edged red V, smoothly-curved black S, and the full VeloSync wordmark. Added properly sized/maskable PWA app icons (previously used the raw 1152x1728 source image directly).
+— PR #5
 
 ## [0.3.0] — 2026-09-02
 
