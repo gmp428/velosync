@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, now, outcomeLabel, pendingSync, resultLabel, zoneLabel } from '../db'
+import { db, displayName, GHOST_OUT, now, outcomeLabel, pendingSync, resultLabel, zoneLabel } from '../db'
 
 export default function GameDetail() {
   const { id } = useParams()
@@ -84,6 +84,7 @@ export default function GameDetail() {
       )}
 
       {ordered.map((ab, i) => {
+        const isGhost = ab.batterId === GHOST_OUT
         const batter = batters.find((b) => b.id === ab.batterId)
         const pitcher = pitchers.find((p) => p.id === ab.pitcherId)
         const abPitches = pitches.filter((p) => p.atBatId === ab.id).sort((a, b) => a.seq - b.seq)
@@ -91,12 +92,14 @@ export default function GameDetail() {
           <div key={ab.id} className="card">
             <div className="row spread">
               <strong>
-                {i + 1}. <Link to={`/batter/${ab.batterId}`}>{displayName(batter)}</Link>
+                {i + 1}. {isGhost
+                  ? <span style={{ fontStyle: 'italic' }}>👻 Ghost out</span>
+                  : <Link to={`/batter/${ab.batterId}`}>{displayName(batter)}</Link>}
               </strong>
               <span>{ab.outcome ? outcomeLabel(ab.outcome) : 'In progress'}</span>
             </div>
             <div className="muted">
-              pitched by {displayName(pitcher)}{ab.inning ? ` · ${halfLabel} ${ab.inning}` : ''}
+              {isGhost ? 'automatic scoreless out' : `pitched by ${displayName(pitcher)}`}{ab.inning ? ` · ${halfLabel} ${ab.inning}` : ''}
             </div>
             <div className="stack" style={{ marginTop: 6 }}>
               {abPitches.map((p) => (

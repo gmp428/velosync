@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, newId, now, pendingSync } from '../db'
+import { db, displayName, MAX_ACTIVE_LINEUP, newId, now, pendingSync } from '../db'
 import LineupEditor from '../components/LineupEditor'
 
 export default function Roster() {
@@ -13,7 +13,16 @@ export default function Roster() {
   // Display (and lineup-default) order always follows the saved sortIndex, not
   // whatever order Dexie happened to return rows in.
   const batters = battersRaw ? [...battersRaw].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)) : battersRaw
-  const battingOrder = batters?.map((b) => b.id) ?? []
+
+  // Only batters checked into today's lineup (activeToday) appear in the
+  // drag-to-reorder batting order. A batter created before this field
+  // existed defaults to checked-in (activeToday !== false), matching the
+  // v5 migration. Ghost-out slots aren't offered here — they're a per-GAME
+  // concept (persisted on Game.lineup once a game exists); the roster
+  // screen only sets the baseline order/roster for the *next* game.
+  const activeBatters = batters?.filter((b) => b.activeToday !== false) ?? []
+  const activeCount = activeBatters.length
+  const battingOrder = activeBatters.map((b) => b.id)
 
   // The roster list below is a separate, stable reference list — always
   // alphabetical by last name (falling back to first name), independent
@@ -53,7 +62,11 @@ export default function Roster() {
       const nextSortIndex = batters && batters.length > 0
         ? Math.max(...batters.map((b) => b.sortIndex ?? 0)) + 1
         : 0
-      await db.batters.add({ id: newId(), opponentId, sortIndex: nextSortIndex, ...fields })
+      // New batters join today's active lineup automatically as long as
+      // there's room under the 9-max cap; over the cap they land unchecked
+      // on the roster so the coach can swap someone out first.
+      const activeToday = activeCount < MAX_ACTIVE_LINEUP
+      await db.batters.add({ id: newId(), opponentId, sortIndex: nextSortIndex, activeToday, ...fields })
     }
     resetForm()
   }
@@ -64,6 +77,16 @@ export default function Roster() {
         await db.batters.update(order[i], { sortIndex: i, updatedAt: now(), ...pendingSync() })
       }
     })
+  }
+
+  // Unchecks a batter from today's lineup — called both from the roster
+  // checkbox and from the drag-list's ✕ (both views share this one state).
+  const setActive = async (batterId: string, active: boolean) => {
+    if (active && activeCount >= MAX_ACTIVE_LINEUP) {
+      alert(`A batting order can have at most ${MAX_ACTIVE_LINEUP} active players. Uncheck someone first.`)
+      return
+    }
+    await db.batters.update(batterId, { activeToday: active, updatedAt: now(), ...pendingSync() })
   }
 
   const startEdit = (batterId: string) => {
@@ -105,25 +128,44 @@ export default function Roster() {
       <p className="muted">Tap a batter to see their scouting report.</p>
 
       <h2 style={{ marginTop: 20 }}>Batting order — drag ≡ to reorder</h2>
-      <p className="muted">Sets the default lineup order for this team's next game.</p>
-      {batters.length > 0 ? (
-        <LineupEditor order={battingOrder} batters={batters} onChange={reorder} />
+      <p className="muted">
+        {activeCount}/{MAX_ACTIVE_LINEUP} checked in for today. Sets the default lineup order for this team's next game.
+      </p>
+      {battingOrder.length > 0 ? (
+        <LineupEditor
+          order={battingOrder}
+          batters={activeBatters}
+          onChange={reorder}
+          onRemoveBatter={(batterId) => setActive(batterId, false)}
+        />
       ) : (
-        <p className="empty">Add batters below to set a batting order.</p>
+        <p className="empty">Check batters into today's lineup below to set a batting order.</p>
       )}
 
       <h2 style={{ marginTop: 20 }}>Roster</h2>
       <div className="list">
-        {rosterList.map((b) => (
-          <div key={b.id} className="list-item">
-            <Link to={`/batter/${b.id}`} className="grow" style={{ color: 'var(--text)' }}>
-              {b.number ? `#${b.number} ` : ''}{displayName(b)} <span className="pill">bats {b.bats}</span>
-            </Link>
-            <button className="small" onClick={() => startEdit(b.id)}>Edit</button>
-            <button className="small danger" onClick={() => removeBatter(b.id)}>✕</button>
-          </div>
-        ))}
+        {rosterList.map((b) => {
+          const isActive = b.activeToday !== false
+          return (
+            <div key={b.id} className="list-item">
+              <input
+                type="checkbox"
+                aria-label={`${displayName(b)} in today's lineup`}
+                checked={isActive}
+                disabled={!isActive && activeCount >= MAX_ACTIVE_LINEUP}
+                onChange={(e) => setActive(b.id, e.target.checked)}
+                style={{ width: 20, height: 20, flexShrink: 0 }}
+              />
+              <Link to={`/batter/${b.id}`} className="grow" style={{ color: 'var(--text)' }}>
+                {b.number ? `#${b.number} ` : ''}{displayName(b)} <span className="pill">bats {b.bats}</span>
+              </Link>
+              <button className="small" onClick={() => startEdit(b.id)}>Edit</button>
+              <button className="small danger" onClick={() => removeBatter(b.id)}>✕</button>
+            </div>
+          )
+        })}
       </div>
+
 
       <form onSubmit={save} className="card stack">
         <strong>{editingId !== null ? 'Edit batter' : 'Add batter'}</strong>
