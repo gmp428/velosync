@@ -6,7 +6,6 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ### Planned
 - Out tracker, inning indicator, and home/away game start.
-- PR-preview seed dataset in an isolated database.
 
 ## [0.5.0] — 2026-09-02
 
