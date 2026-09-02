@@ -488,7 +488,7 @@ async function seedPrPreviewData(): Promise<void> {
   ]
   const batterIds = batterDefs.map((_, i) => `seed-batter-${i}`)
   await db.batters.bulkAdd(batterDefs.map((b, i) => ({
-    id: batterIds[i], opponentId, sortIndex: i, updatedAt: ts, ...pendingSync(), ...b,
+    id: batterIds[i], opponentId, sortIndex: i, activeToday: i < 9, updatedAt: ts, ...pendingSync(), ...b,
   })))
 
   const pitchTypeRows = await db.pitchTypes.toArray()
