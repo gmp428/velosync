@@ -311,7 +311,18 @@ export async function saveSettings(patch: Partial<Omit<AppSettings, 'id'>>): Pro
 // Primary keys are supplied by us (UUIDs), not auto-incremented. The database
 // name is versioned (…-v2) because the id type changed from integers to
 // strings; the old integer-keyed database is discarded (data was throwaway).
-export const db = new Dexie('pitch-tracker-v2') as Dexie & {
+//
+// PR-preview builds (deploy.yml sets VELOSYNC_PR) use a COMPLETELY SEPARATE
+// database name, never the production one — this is a hard storage-level
+// isolation, not a flag check, so no code path can ever cross-contaminate a
+// real coach's data with preview/seed data, no matter what changes here.
+// See PR_SEED_DATA below: it populates this separate database once, the
+// first time it's created (Dexie's on('populate') hook), so every PR
+// preview opens with the same standard test dataset instead of blank.
+export const IS_PR_PREVIEW = import.meta.env.BASE_URL.includes('/pr/')
+const DB_NAME = IS_PR_PREVIEW ? 'pitch-tracker-pr-preview' : 'pitch-tracker-v2'
+
+export const db = new Dexie(DB_NAME) as Dexie & {
   opponents: EntityTable<Opponent, 'id'>
   batters: EntityTable<Batter, 'id'>
   pitchers: EntityTable<Pitcher, 'id'>
@@ -438,7 +449,126 @@ const DEFAULT_PITCH_TYPES: Array<Pick<PitchType, 'name' | 'abbr'>> = [
 
 db.on('populate', async () => {
   await db.pitchTypes.bulkAdd(DEFAULT_PITCH_TYPES.map((t) => ({ ...t, id: newId(), updatedAt: now(), ...pendingSync() })))
+  // PR-preview builds get a standard seed dataset on top of the default
+  // pitch types, so a reviewer opens a populated scouting report instead of
+  // a blank app. Fires once, only into the separate pr-preview database
+  // (see DB_NAME above) -- structurally impossible to touch real data.
+  if (IS_PR_PREVIEW) {
+    await seedPrPreviewData()
+  }
 })
+
+// ---------- PR-preview seed data ----------
+// One standard, deterministic test dataset: a fixed opponent team, roster,
+// pitching staff (varied arsenals), and a finished game with real pitch
+// history -- so a reviewer can immediately exercise scouting reports,
+// batting order, substitutions, etc. without manual setup. Same dataset
+// every time (fixed names/order), so quirks are easy to learn and spot
+// regressions against, per G's request. Only ever runs in the isolated
+// pr-preview database -- never production.
+async function seedPrPreviewData(): Promise<void> {
+  const ts = now()
+
+  const opponentId = 'seed-opponent-riverdale'
+  await db.opponents.add({
+    id: opponentId, name: 'Riverdale Rays', updatedAt: ts, ...pendingSync(),
+  })
+
+  const batterDefs = [
+    { firstName: 'Casey', lastName: 'Nguyen', number: '2', bats: 'L' as const },
+    { firstName: 'Maya', lastName: 'Ortiz', number: '7', bats: 'R' as const },
+    { firstName: 'Jordan', lastName: 'Blake', number: '14', bats: 'R' as const },
+    { firstName: 'Sam', lastName: 'Whitfield', number: '9', bats: 'L' as const },
+    { firstName: 'Riley', lastName: 'Chen', number: '21', bats: 'R' as const },
+    { firstName: 'Avery', lastName: 'Dunn', number: '3', bats: 'R' as const },
+    { firstName: 'Taylor', lastName: 'Grimes', number: '11', bats: 'L' as const },
+    { firstName: 'Morgan', lastName: 'Ellis', number: '18', bats: 'R' as const },
+    { firstName: 'Skylar', lastName: 'Park', number: '5', bats: 'R' as const },
+    { firstName: 'Devin', lastName: 'Torres', number: '24', bats: 'L' as const }, // bench, not in today's 9
+  ]
+  const batterIds = batterDefs.map((_, i) => `seed-batter-${i}`)
+  await db.batters.bulkAdd(batterDefs.map((b, i) => ({
+    id: batterIds[i], opponentId, sortIndex: i, updatedAt: ts, ...pendingSync(), ...b,
+  })))
+
+  const pitchTypeRows = await db.pitchTypes.toArray()
+  const byAbbr = (abbr: string) => pitchTypeRows.find((t) => t.abbr === abbr)?.id
+  const pitcherDefs = [
+    { firstName: 'Charlie', lastName: 'Reyes', number: '1', throws: 'R' as const, arsenal: ['FB', 'CH', 'CV'] },
+    { firstName: 'Bailey', lastName: 'Foster', number: '17', throws: 'L' as const, arsenal: ['FB', 'DR', 'RI', 'SC'] },
+  ]
+  const pitcherIds = pitcherDefs.map((_, i) => `seed-pitcher-${i}`)
+  await db.pitchers.bulkAdd(pitcherDefs.map((p, i) => ({
+    id: pitcherIds[i], firstName: p.firstName, lastName: p.lastName, number: p.number, throws: p.throws,
+    pitchTypeIds: p.arsenal.map(byAbbr).filter((x): x is string => Boolean(x)),
+    updatedAt: ts, ...pendingSync(),
+  })))
+
+  // One finished game with a real, varied pitch history so batter/pitcher
+  // reports and heat maps have something to show immediately.
+  const gameId = 'seed-game-1'
+  const lineup = batterIds.slice(0, 9) // Devin Torres (bench) sits this one out
+  await db.games.add({
+    id: gameId, opponentId, date: '2026-08-24', label: 'vs Riverdale (scrimmage)',
+    status: 'finished', currentPitcherId: pitcherIds[0], lineup,
+    currentInning: 4, half: 'top',
+    updatedAt: ts, ...pendingSync(),
+  })
+
+  type SeedPitch = { result: PitchResult; pitchTypeId?: string; inPlay?: InPlayOutcome }
+  const fb = byAbbr('FB')!, ch = byAbbr('CH')!, cv = byAbbr('CV')!, dr = byAbbr('DR')!
+  // A handful of representative at-bats across a few batters and both
+  // pitchers, with mixed outcomes -- enough variety for stats/heat maps to
+  // render real-looking data, not just one repeated pattern.
+  const atBatPlans: Array<{ batterIdx: number; pitcherIdx: number; inning: number; outcome: AtBatOutcome | undefined; pitches: SeedPitch[] }> = [
+    { batterIdx: 0, pitcherIdx: 0, inning: 1, outcome: 'strikeout', pitches: [
+      { result: 'called_strike', pitchTypeId: fb }, { result: 'foul', pitchTypeId: fb }, { result: 'swinging_strike', pitchTypeId: cv },
+    ] },
+    { batterIdx: 1, pitcherIdx: 0, inning: 1, outcome: 'single', pitches: [
+      { result: 'ball', pitchTypeId: fb }, { result: 'in_play', pitchTypeId: fb, inPlay: 'single' },
+    ] },
+    { batterIdx: 2, pitcherIdx: 0, inning: 1, outcome: 'out', pitches: [
+      { result: 'in_play', pitchTypeId: ch, inPlay: 'out' },
+    ] },
+    { batterIdx: 3, pitcherIdx: 1, inning: 2, outcome: 'walk', pitches: [
+      { result: 'ball', pitchTypeId: fb }, { result: 'ball', pitchTypeId: dr }, { result: 'called_strike', pitchTypeId: fb }, { result: 'ball', pitchTypeId: dr }, { result: 'ball', pitchTypeId: fb },
+    ] },
+    { batterIdx: 4, pitcherIdx: 1, inning: 2, outcome: 'double', pitches: [
+      { result: 'in_play', pitchTypeId: fb, inPlay: 'double' },
+    ] },
+    { batterIdx: 0, pitcherIdx: 1, inning: 3, outcome: 'strikeout', pitches: [
+      { result: 'swinging_strike', pitchTypeId: dr }, { result: 'ball', pitchTypeId: fb }, { result: 'swinging_strike', pitchTypeId: dr },
+    ] },
+    { batterIdx: 1, pitcherIdx: 1, inning: 3, outcome: 'home_run', pitches: [
+      { result: 'called_strike', pitchTypeId: fb }, { result: 'in_play', pitchTypeId: fb, inPlay: 'home_run' },
+    ] },
+    { batterIdx: 2, pitcherIdx: 0, inning: 4, outcome: 'out', pitches: [
+      { result: 'foul', pitchTypeId: cv }, { result: 'in_play', pitchTypeId: cv, inPlay: 'out' },
+    ] },
+  ]
+
+  let pitchTs = ts - 1000 * 60 * 60 // an hour "ago" so it doesn't read as live
+  for (let i = 0; i < atBatPlans.length; i++) {
+    const plan = atBatPlans[i]
+    const atBatId = `seed-atbat-${i}`
+    await db.atBats.add({
+      id: atBatId, gameId, batterId: batterIds[plan.batterIdx], pitcherId: pitcherIds[plan.pitcherIdx],
+      outcome: plan.outcome, inning: plan.inning, startedAt: pitchTs, updatedAt: ts, ...pendingSync(),
+    })
+    let balls = 0, strikes = 0
+    for (let seq = 0; seq < plan.pitches.length; seq++) {
+      const p = plan.pitches[seq]
+      pitchTs += 15_000
+      await db.pitches.add({
+        id: `seed-pitch-${i}-${seq}`, gameId, atBatId, batterId: batterIds[plan.batterIdx], pitcherId: pitcherIds[plan.pitcherIdx],
+        seq: seq + 1, balls, strikes, pitchTypeId: p.pitchTypeId ?? fb, zone: ((seq % 9) + 1) as Zone,
+        result: p.result, inPlay: p.inPlay, inning: plan.inning, ts: pitchTs, updatedAt: ts, ...pendingSync(),
+      })
+      if (p.result === 'ball') balls++
+      else if (p.result === 'called_strike' || p.result === 'swinging_strike') strikes++
+    }
+  }
+}
 
 // ---------- Display helpers ----------
 
