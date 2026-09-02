@@ -81,12 +81,26 @@ export default function Roster() {
 
   // Unchecks a batter from today's lineup — called both from the roster
   // checkbox and from the drag-list's ✕ (both views share this one state).
+  // Checking IN a batter sends them to the bottom of the current batting
+  // order (next sortIndex after the highest active one), not wherever their
+  // old sortIndex happened to be — so checking players one at a time in the
+  // order you want them to bat builds the lineup top-to-bottom naturally,
+  // without disturbing anyone already checked in.
   const setActive = async (batterId: string, active: boolean) => {
     if (active && activeCount >= MAX_ACTIVE_LINEUP) {
       alert(`A batting order can have at most ${MAX_ACTIVE_LINEUP} active players. Uncheck someone first.`)
       return
     }
-    await db.batters.update(batterId, { activeToday: active, updatedAt: now(), ...pendingSync() })
+    const fields: { activeToday: boolean; updatedAt: number; sortIndex?: number } = {
+      activeToday: active,
+      updatedAt: now(),
+    }
+    if (active) {
+      fields.sortIndex = activeBatters.length > 0
+        ? Math.max(...activeBatters.map((b) => b.sortIndex ?? 0)) + 1
+        : 0
+    }
+    await db.batters.update(batterId, { ...fields, ...pendingSync() })
   }
 
   const startEdit = (batterId: string) => {
