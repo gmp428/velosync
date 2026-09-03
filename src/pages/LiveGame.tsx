@@ -19,15 +19,21 @@ import { battleAgg, battleRate, byZoneBattle, outcomeBreakdown, pct } from '../l
 // an all-ghost order (no real batters left) can't spin forever.
 //
 // Re-checks the 3-outs-per-inning rule after EVERY ghost out logged (not
-// just after real at-bats) — a ghost out can itself be the 3rd out. When
-// capInning is on and onGhostFlash is given, it's awaited before continuing
-// to the next slot, so the caller can show a brief "Ghost Batter" screen in
-// sync with each ghost out actually being recorded.
+// just after real at-bats) — a ghost out can itself be the 3rd out. This is
+// ALWAYS tracked (not gated by any capture-preset setting) since the out
+// count/inning are core gameplay, not an optional field.
+//
+// IMPORTANT: this function only does fast, synchronous DB writes — no UI
+// timers. It's always called from inside a db.transaction(), and awaiting a
+// real setTimeout mid-transaction makes Dexie mark the transaction inactive,
+// silently failing every write after it. The out numbers for each ghost out
+// walked past are returned so the CALLER can show the "Ghost Batter" flash
+// sequence after the transaction has fully committed.
 async function openNextRealAtBat(
   gameId: string, order: string[], fromIndex: number, pitcherId: string, inning: number,
-  capInning = false, onGhostFlash?: (outNum: number) => Promise<void>,
-): Promise<void> {
-  if (order.length === 0) return
+): Promise<number[]> {
+  const ghostOutNums: number[] = []
+  if (order.length === 0) return ghostOutNums
   let idx = ((fromIndex % order.length) + order.length) % order.length
   let curInning = inning
   for (let steps = 0; steps < order.length; steps++) {
@@ -37,29 +43,27 @@ async function openNextRealAtBat(
         id: newId(), gameId, batterId: slot, pitcherId, inning: curInning,
         startedAt: Date.now(), updatedAt: now(), ...pendingSync(),
       })
-      return
+      return ghostOutNums
     }
     await db.atBats.add({
       id: newId(), gameId, batterId: GHOST_OUT, pitcherId, outcome: 'ghost_out', inning: curInning,
       startedAt: Date.now(), updatedAt: now(), ...pendingSync(),
     })
-    let outNum = 0
-    if (capInning) {
-      const gameAbs = await db.atBats.where('gameId').equals(gameId).toArray()
-      outNum = gameAbs.filter(
-        (a) => (a.inning ?? curInning) === curInning
-          && (a.outcome === 'out' || a.outcome === 'strikeout' || a.outcome === 'ghost_out'),
-      ).length
-      if (outNum >= 3) {
-        curInning += 1
-        await db.games.update(gameId, { currentInning: curInning, updatedAt: now(), ...pendingSync() })
-      }
+    const gameAbs = await db.atBats.where('gameId').equals(gameId).toArray()
+    const outNum = gameAbs.filter(
+      (a) => (a.inning ?? curInning) === curInning
+        && (a.outcome === 'out' || a.outcome === 'strikeout' || a.outcome === 'ghost_out'),
+    ).length
+    if (outNum >= 3) {
+      curInning += 1
+      await db.games.update(gameId, { currentInning: curInning, updatedAt: now(), ...pendingSync() })
     }
-    if (onGhostFlash) await onGhostFlash(outNum)
+    ghostOutNums.push(outNum)
     idx = (idx + 1) % order.length
   }
   // Every slot is a ghost out — nothing real to bat. Leave the game idle
   // rather than looping forever; the coach needs to check a real batter in.
+  return ghostOutNums
 }
 
 export default function LiveGame() {
@@ -126,13 +130,17 @@ export default function LiveGame() {
     setChangingBatter(false)
   }, [openAtBat?.batterId])
 
-  // Shows the "Ghost Batter — Out N" flash for the configured hold time,
-  // awaited so openNextRealAtBat pauses between successive ghost outs
-  // instead of blowing through several in an instant.
-  const flashGhost = (outNum: number) => new Promise<void>((resolve) => {
-    setGhostFlash(outNum)
-    setTimeout(() => { setGhostFlash(null); resolve() }, 3000)
-  })
+  // Shows the "Ghost Batter — Out N" flash for 3 seconds per number, one
+  // after another. Always called AFTER a db.transaction() has committed —
+  // never awaited from inside one (see openNextRealAtBat's comment).
+  const flashGhosts = async (outNums: number[]) => {
+    for (const n of outNums) {
+      await new Promise<void>((resolve) => {
+        setGhostFlash(n)
+        setTimeout(() => { setGhostFlash(null); resolve() }, 3000)
+      })
+    }
+  }
 
   // Auto-start the leadoff hitter when an active game has no at-bats yet.
   // If the lineup opens with one or more ghost-out slots, those are logged
@@ -143,10 +151,9 @@ export default function LiveGame() {
     const lu = game.lineup && game.lineup.length ? game.lineup : (roster ?? []).map((b) => b.id)
     if (lu.length === 0 || bootingRef.current) return
     bootingRef.current = true
-    openNextRealAtBat(
-      gameId, lu, 0, game.currentPitcherId!, game.currentInning ?? 1,
-      settings?.capture?.inning ?? CAPTURE_PRESETS.standard.inning, flashGhost,
-    ).finally(() => { bootingRef.current = false })
+    openNextRealAtBat(gameId, lu, 0, game.currentPitcherId!, game.currentInning ?? 1)
+      .then(flashGhosts)
+      .finally(() => { bootingRef.current = false })
   }, [game?.status, atBatCount, game?.lineup, game?.currentPitcherId, gameId, roster])
 
   if (!game || !opponent || !roster || !pitchers || !pitchTypes) return null
@@ -225,6 +232,7 @@ export default function LiveGame() {
     const newLineup = at === -1
       ? [...without, replacement]
       : [...without.slice(0, at), replacement, ...without.slice(at + 1)]
+    let becameGhostOut = false
     await db.transaction('rw', db.atBats, db.pitches, db.games, db.substitutions, async () => {
       // If the outgoing player is at bat right now with no pitches thrown
       // yet, hand off (real sub) or convert (ghost out) the in-progress
@@ -235,6 +243,7 @@ export default function LiveGame() {
           await db.atBats.update(openAtBat.id, { batterId: incomingId, updatedAt: now(), ...pendingSync() })
         } else {
           await db.atBats.update(openAtBat.id, { batterId: GHOST_OUT, outcome: 'ghost_out', updatedAt: now(), ...pendingSync() })
+          becameGhostOut = true
         }
       }
       await db.games.update(gameId, { lineup: newLineup, updatedAt: now(), ...pendingSync() })
@@ -250,16 +259,17 @@ export default function LiveGame() {
           ...pendingSync(),
         })
       }
-      // The current turn just became a ghost out (no batter to bat it) —
-      // immediately advance to the next real batter, same as commit() does
-      // after any other out.
-      if (openAtBat && openAtBat.batterId === outgoingId && (abPitches?.length ?? 0) === 0 && !incomingId) {
-        await openNextRealAtBat(
-          gameId, newLineup, at === -1 ? newLineup.length - 1 : at, game.currentPitcherId ?? openAtBat.pitcherId,
-          curInning, cap.inning, flashGhost,
-        )
-      }
     })
+    // The current turn just became a ghost out (no batter to bat it) —
+    // immediately advance to the next real batter, same as commit() does
+    // after any other out. Runs AFTER the transaction commits (see
+    // openNextRealAtBat's comment on why it can't be awaited from inside one).
+    if (becameGhostOut) {
+      const outNums = await openNextRealAtBat(
+        gameId, newLineup, at === -1 ? newLineup.length - 1 : at, game.currentPitcherId ?? openAtBat!.pitcherId, curInning,
+      )
+      await flashGhosts(outNums)
+    }
     setSubstitutingFor(null)
     setShowSubstitutePanel(false)
   }
@@ -315,8 +325,10 @@ export default function LiveGame() {
         // Inning auto-advance: once 3 outs are recorded in the current inning,
         // roll to the next one so the next at-bat is stamped with it. Ghost
         // outs count as outs too — a vacated slot still costs the inning.
+        // Always tracked, regardless of the "detailed capture" display
+        // preference — outs/innings are core gameplay, not optional.
         let nextInning = curInning
-        if (cap.inning && (outcome === 'out' || outcome === 'strikeout')) {
+        if (outcome === 'out' || outcome === 'strikeout') {
           const gameAbs = await db.atBats.where('gameId').equals(gameId).toArray()
           const outs = gameAbs.filter(
             (a) => (a.inning ?? curInning) === curInning
@@ -327,17 +339,23 @@ export default function LiveGame() {
             await db.games.update(gameId, { currentInning: nextInning, updatedAt: now(), ...pendingSync() })
           }
         }
-        // Auto-advance: open the next batter's at-bat per the lineup order,
-        // auto-logging (and skipping past) any ghost-out slots in between.
-        const curIdx = order.indexOf(openAtBat.batterId)
-        if (curIdx !== -1 && order.length > 0) {
-          await openNextRealAtBat(
-            gameId, order, curIdx + 1, game.currentPitcherId ?? openAtBat.pitcherId,
-            nextInning, cap.inning, flashGhost,
-          )
-        }
       }
     })
+    if (outcome) {
+      // Auto-advance: open the next batter's at-bat per the lineup order,
+      // auto-logging (and skipping past) any ghost-out slots in between.
+      // Runs AFTER the transaction above commits (see openNextRealAtBat's
+      // comment on why it can't be awaited from inside one).
+      const curIdx = order.indexOf(openAtBat.batterId)
+      if (curIdx !== -1 && order.length > 0) {
+        const gameAfter = await db.games.get(gameId)
+        const outNums = await openNextRealAtBat(
+          gameId, order, curIdx + 1, game.currentPitcherId ?? openAtBat.pitcherId,
+          gameAfter?.currentInning ?? curInning,
+        )
+        await flashGhosts(outNums)
+      }
+    }
     setSelType(null)
     setSelZone(null)
     setShowInPlay(false)
