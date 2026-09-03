@@ -172,7 +172,8 @@ export default function LiveGame() {
   // circles. The 3rd out is never actually seen filled in because the
   // inning auto-advances (and resets this to 0) the instant it's logged.
   const outsThisInning = (gameAtBats ?? []).filter(
-    (a) => (a.inning ?? curInning) === curInning && (a.outcome === 'out' || a.outcome === 'strikeout'),
+    (a) => (a.inning ?? curInning) === curInning
+      && (a.outcome === 'out' || a.outcome === 'strikeout' || a.outcome === 'ghost_out'),
   ).length
 
   // The batting order to drive auto-advance / the lineup panel. Always falls
