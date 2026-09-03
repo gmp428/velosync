@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -68,6 +69,8 @@ export default function LineupEditor({
   onChange,
   onRemoveBatter,
   allowGhostAdd = false,
+  addableBatters,
+  onAddBatter,
 }: {
   order: string[]
   batters: Batter[]
@@ -78,6 +81,12 @@ export default function LineupEditor({
   onRemoveBatter?: (batterId: string) => void
   // Show a "+ Ghost out" button that appends a vacant, auto-out slot.
   allowGhostAdd?: boolean
+  // Batters eligible to be added to the order (typically: on the roster but
+  // NOT already in `order` — benched, or added to the roster since the
+  // order was last built). Passing this (even an empty array) shows an
+  // "Add batter to order" picker; omitting it hides the picker entirely.
+  addableBatters?: Batter[]
+  onAddBatter?: (batterId: string) => void
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -128,6 +137,36 @@ export default function LineupEditor({
           + Ghost Batter (Auto Out) slot
         </button>
       )}
+      {addableBatters !== undefined && (
+        <AddBatterPicker batters={addableBatters} onAdd={onAddBatter} />
+      )}
+    </div>
+  )
+}
+
+function AddBatterPicker({ batters, onAdd }: { batters: Batter[]; onAdd?: (batterId: string) => void }) {
+  const [selected, setSelected] = useState('')
+  if (batters.length === 0) {
+    return <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>No other batters available to add.</p>
+  }
+  return (
+    <div className="row" style={{ gap: 8 }}>
+      <select value={selected} onChange={(e) => setSelected(e.target.value)} style={{ flex: 1 }}>
+        <option value="">Add a batter to the order…</option>
+        {batters.map((b) => (
+          <option key={b.id} value={b.id}>{b.number ? `#${b.number} ` : ''}{displayName(b)}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className="small"
+        disabled={!selected}
+        onClick={() => {
+          if (selected) { onAdd?.(selected); setSelected('') }
+        }}
+      >
+        Add
+      </button>
     </div>
   )
 }

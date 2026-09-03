@@ -581,7 +581,8 @@ export default function LiveGame() {
           <p className="muted" style={{ margin: 0 }}>
             ✕ benches a batter for today (unchecks them on the roster too).
             Add a Ghost Batter (Auto Out) slot for a vacancy with no sub — it auto-logs a scoreless
-            out and skips ahead when the order reaches it.
+            out and skips ahead when the order reaches it. Add a benched or
+            newly-added batter directly into today's order below.
           </p>
           <LineupEditor
             order={order}
@@ -589,6 +590,13 @@ export default function LiveGame() {
             onChange={(o) => db.games.update(gameId, { lineup: o, updatedAt: now(), ...pendingSync() })}
             onRemoveBatter={(batterId) => db.batters.update(batterId, { activeToday: false, updatedAt: now(), ...pendingSync() })}
             allowGhostAdd={order.length > 0 && order.length <= 8 && !order.includes(GHOST_OUT)}
+            addableBatters={roster.filter((b) => !order.includes(b.id))}
+            onAddBatter={async (batterId) => {
+              await db.transaction('rw', db.batters, db.games, async () => {
+                await db.batters.update(batterId, { activeToday: true, updatedAt: now(), ...pendingSync() })
+                await db.games.update(gameId, { lineup: [...order, batterId], updatedAt: now(), ...pendingSync() })
+              })
+            }}
           />
         </div>
       )}
