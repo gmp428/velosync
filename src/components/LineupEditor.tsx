@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -94,10 +94,29 @@ export default function LineupEditor({
   )
   const byId = new Map(batters.map((b) => [b.id, b]))
 
+  // Local draft of the order, synced from the `order` prop only when it
+  // genuinely changes from OUTSIDE (game loaded, another device's sync,
+  // etc.) — NOT re-derived on every render. This closes a real race: every
+  // edit here writes to Dexie and the new `order` prop only arrives after
+  // that write round-trips back through the live query and a re-render. If
+  // a coach fires off a second edit (drag another row, tap another remove)
+  // before that round-trip completes, computing the second edit against the
+  // stale `order` PROP would silently discard the first edit entirely once
+  // its own write lands. Editing against local `draft` state instead means
+  // each edit always builds on the immediately-preceding one, in order,
+  // regardless of how fast Dexie's write/read-back cycle keeps up.
+  const [draft, setDraft] = useState(order)
+  useEffect(() => { setDraft(order) }, [order.join('\u0001')])
+
+  const applyChange = (next: string[]) => {
+    setDraft(next)
+    onChange(next)
+  }
+
   // dnd-kit needs stable, unique ids — multiple ghost slots would collide on
   // the literal GHOST_OUT string, so sortable ids are index-suffixed and
   // mapped back to real order values via `sortIds`.
-  const sortIds = order.map((id, i) => (id === GHOST_OUT ? `${GHOST_OUT}:${i}` : id))
+  const sortIds = draft.map((id, i) => (id === GHOST_OUT ? `${GHOST_OUT}:${i}` : id))
 
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e
@@ -105,28 +124,28 @@ export default function LineupEditor({
     const from = sortIds.indexOf(String(active.id))
     const to = sortIds.indexOf(String(over.id))
     if (from === -1 || to === -1) return
-    onChange(arrayMove(order, from, to))
+    applyChange(arrayMove(draft, from, to))
   }
 
   const removeAt = (sortId: string) => {
     const idx = sortIds.indexOf(sortId)
     if (idx === -1) return
-    const removedId = order[idx]
-    onChange(order.filter((_, i) => i !== idx))
+    const removedId = draft[idx]
+    applyChange(draft.filter((_, i) => i !== idx))
     // Always notify the caller, including for a ghost-out slot — Roster.tsx
     // needs this to turn off the persisted roster-level ghost setting, or
     // it'll just get recomputed back into the order on the next render.
     onRemoveBatter?.(removedId)
   }
 
-  const addGhost = () => onChange([...order, GHOST_OUT])
+  const addGhost = () => applyChange([...draft, GHOST_OUT])
 
   return (
     <div className="stack">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
           <div className="list">
-            {order.map((id, i) => (
+            {draft.map((id, i) => (
               <Row key={sortIds[i]} sortId={sortIds[i]} rawId={id} batter={byId.get(id)} index={i} onRemove={removeAt} />
             ))}
           </div>
@@ -138,7 +157,13 @@ export default function LineupEditor({
         </button>
       )}
       {addableBatters !== undefined && (
-        <AddBatterPicker batters={addableBatters} onAdd={onAddBatter} />
+        <AddBatterPicker
+          batters={addableBatters}
+          onAdd={(batterId) => {
+            applyChange([...draft, batterId])
+            onAddBatter?.(batterId)
+          }}
+        />
       )}
     </div>
   )

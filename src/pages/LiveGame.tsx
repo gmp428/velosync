@@ -612,11 +612,11 @@ export default function LiveGame() {
             onRemoveBatter={(batterId) => db.batters.update(batterId, { activeToday: false, updatedAt: now(), ...pendingSync() })}
             allowGhostAdd={order.length > 0 && order.length <= 8 && !order.includes(GHOST_OUT)}
             addableBatters={roster.filter((b) => !order.includes(b.id))}
-            onAddBatter={async (batterId) => {
-              await db.transaction('rw', db.batters, db.games, async () => {
-                await db.batters.update(batterId, { activeToday: true, updatedAt: now(), ...pendingSync() })
-                await db.games.update(gameId, { lineup: [...order, batterId], updatedAt: now(), ...pendingSync() })
-              })
+            onAddBatter={(batterId) => {
+              // Lineup write is owned by LineupEditor's onChange (see
+              // applyChange there) — this only flips the roster-level
+              // activeToday flag so the roster/checkbox screens stay in sync.
+              db.batters.update(batterId, { activeToday: true, updatedAt: now(), ...pendingSync() })
             }}
           />
         </div>
