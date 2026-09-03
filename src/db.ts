@@ -67,7 +67,7 @@ export interface Opponent {
 export interface Batter {
   id: string
   opponentId: string
-  firstName: string
+  firstName?: string // undefined = jersey-number-only quick-add, not yet named
   lastName?: string
   name?: string // legacy single-name (pre first/last split)
   number?: string
@@ -110,18 +110,26 @@ export interface Pitcher {
   syncedAt?: number | null
 }
 
-// Display "F. Last" (falls back to first name, then legacy name).
-export function displayName(p: { firstName?: string; lastName?: string; name?: string } | undefined): string {
+// Display "F. Last" (falls back to first name, then legacy name, then a
+// "Batter #N" placeholder for a jersey-number-only quick-add with no name
+// yet — needs `number` on the passed object to render that placeholder).
+export function displayName(p: { firstName?: string; lastName?: string; name?: string; number?: string } | undefined): string {
   if (!p) return '?'
   if (p.firstName && p.lastName) return `${p.firstName[0].toUpperCase()}. ${p.lastName}`
-  return p.firstName || p.name || '?'
+  if (p.firstName || p.name) return p.firstName || p.name!
+  if (p.number) return `Batter #${p.number}`
+  return '?'
 }
 
-// Full "First Last" (for report titles).
-export function fullName(p: { firstName?: string; lastName?: string; name?: string } | undefined): string {
+// Full "First Last" (for report titles). Same "Batter #N" placeholder
+// fallback as displayName for an unnamed jersey-number-only quick-add.
+export function fullName(p: { firstName?: string; lastName?: string; name?: string; number?: string } | undefined): string {
   if (!p) return '?'
   const joined = [p.firstName, p.lastName].filter(Boolean).join(' ')
-  return joined || p.name || '?'
+  if (joined) return joined
+  if (p.name) return p.name
+  if (p.number) return `Batter #${p.number}`
+  return '?'
 }
 
 export function pitcherArsenal(pitcher: Pitcher | undefined, allTypes: PitchType[]): PitchType[] {
