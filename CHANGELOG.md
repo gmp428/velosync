@@ -4,6 +4,12 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.10.2] — 2026-09-03
+
+### Fixed
+- Rapid, back-to-back edits in the Batting order panel (drag one row, then immediately drag or remove another) could silently overwrite each other, discarding all but the last edit. The panel now edits against local state that updates immediately, so each edit correctly builds on the one before it regardless of how fast they happen.
+— PR #15
+
 ## [0.10.1] — 2026-09-03
 
 ### Fixed
