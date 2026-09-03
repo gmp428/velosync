@@ -291,53 +291,45 @@ export default function LiveGame() {
   }
 
   // Reassign the current at-bat (and any pitches already logged in it) to a
-  // different batter — for when the wrong batter was picked. The batter
-  // mistakenly selected never actually had their turn, so they shouldn't
-  // disappear from the order or get skipped later — the fix SWAPS the two
-  // batters' positions: newBatterId takes over the current turn, and the
-  // wrong batter moves to newBatterId's old spot, so they're still due up
-  // normally whenever that position comes around again.
+  // different batter — for when the wrong batter was picked. This is
+  // PURELY correcting who's currently at the plate, NOT a lineup change —
+  // the batting order itself is never touched. The mistaken batter is still
+  // due up normally in their own turn later; "change batter" here just
+  // means "I mis-clicked who's up this turn," nothing about the order.
   //
-  // IMPORTANT: computes against the DATABASE's actual current lineup, read
-  // fresh inside the same transaction — never the `order` variable captured
-  // at render time. Real bug this fixes: reordering the batting order, then
-  // immediately using "Wrong batter?" to correct who's up, could compute the
-  // swap against a stale pre-reorder snapshot if the screen hadn't yet
-  // caught up with the reorder's own write — silently reverting the reorder
-  // the moment this swap's write landed. Reading live, in-transaction state
-  // closes that gap regardless of how quickly the two actions happen.
+  // (Earlier versions of this fix incorrectly modified game.lineup itself —
+  // first by dropping the mistaken batter out of the order entirely, then
+  // by swapping the two batters' positions. G confirmed neither is correct:
+  // changing who's at bat should never rearrange the batting order. Doing
+  // so was corrupting the order on every correction, which compounded into
+  // batters getting skipped and the cycle restarting at the wrong spot.)
+  //
+  // Reads the DATABASE's actual current lineup fresh inside the same
+  // transaction (not the `order` variable captured at render time) for the
+  // one case that still needs a lineup touch below, so a reorder made
+  // moments before this runs is never silently clobbered.
   const switchBatter = async (newBatterId: string) => {
     if (!openAtBat || newBatterId === openAtBat.batterId) {
       setChangingBatter(false)
       return
     }
-    const wrongId = openAtBat.batterId
     await db.transaction('rw', db.atBats, db.pitches, db.games, async () => {
-      const liveGame = await db.games.get(gameId)
-      const liveOrder = liveGame?.lineup && liveGame.lineup.length > 0 ? liveGame.lineup : order
-      const wrongIdx = liveOrder.indexOf(wrongId)
-      const newIdx = liveOrder.indexOf(newBatterId)
-      let newLineup: string[]
-      if (wrongIdx === -1) {
-        // Wrong batter isn't even in the order (shouldn't normally happen) —
-        // just insert the correct batter at that spot without losing anyone.
-        newLineup = liveOrder.filter((id) => id !== newBatterId)
-        newLineup = newIdx === -1 ? [newBatterId, ...newLineup] : newLineup
-      } else if (newIdx === -1) {
-        // Correct batter isn't in the order yet (e.g. bench player) — put
-        // them in the wrong batter's slot; the wrong batter moves to the end
-        // so they're still in the game, just after everyone else for now.
-        newLineup = liveOrder.map((id) => (id === wrongId ? newBatterId : id))
-        newLineup.push(wrongId)
-      } else {
-        // Normal case: both are already in the order — swap their positions.
-        newLineup = [...liveOrder]
-        newLineup[wrongIdx] = newBatterId
-        newLineup[newIdx] = wrongId
-      }
       await db.atBats.update(openAtBat.id, { batterId: newBatterId, updatedAt: now(), ...pendingSync() })
       await db.pitches.where('atBatId').equals(openAtBat.id).modify({ batterId: newBatterId, updatedAt: now(), ...pendingSync() })
-      await db.games.update(gameId, { lineup: newLineup, updatedAt: now(), ...pendingSync() })
+      // The ONE case that still needs a lineup touch: the corrected batter
+      // isn't in today's order at all (e.g. a bench player never checked
+      // in). There's no existing slot to hand them the turn from, so they
+      // get added at the current position — nothing else in the order
+      // moves. If they're already in the order, this is a no-op.
+      const liveGame = await db.games.get(gameId)
+      const liveOrder = liveGame?.lineup && liveGame.lineup.length > 0 ? liveGame.lineup : order
+      if (!liveOrder.includes(newBatterId)) {
+        const wrongIdx = liveOrder.indexOf(openAtBat.batterId)
+        const newLineup = wrongIdx === -1
+          ? [newBatterId, ...liveOrder]
+          : [...liveOrder.slice(0, wrongIdx), newBatterId, ...liveOrder.slice(wrongIdx)]
+        await db.games.update(gameId, { lineup: newLineup, updatedAt: now(), ...pendingSync() })
+      }
     })
     setChangingBatter(false)
   }
