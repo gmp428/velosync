@@ -564,7 +564,15 @@ export async function defaultLineup(opponentId: string): Promise<string[]> {
   const roster = await db.batters.where('opponentId').equals(opponentId).toArray()
   const active = roster.filter((b) => b.activeToday !== false)
   const items: Array<{ id: string; sortIndex: number }> = active.map((b) => ({ id: b.id, sortIndex: b.sortIndex ?? 0 }))
-  if (opponent?.ghostOutEnabled) {
+  // Ghost-out only makes sense when the team is short-handed (<=8 active) —
+  // matches the roster screen's own display rule. The opponent's
+  // ghostOutEnabled flag alone isn't enough: a coach can enable it at 8
+  // active, then check in a 9th+ batter afterward, and the flag stays set
+  // (it's not auto-cleared) even though the roster screen correctly hides
+  // the ghost row once there's no room for it. Without this guard, a new
+  // game would silently add a ghost-out slot the coach can no longer even
+  // see or remove from the team menu.
+  if (opponent?.ghostOutEnabled && active.length <= GHOST_OUT_THRESHOLD) {
     items.push({ id: GHOST_OUT, sortIndex: opponent.ghostOutSortIndex ?? Infinity })
   }
   items.sort((a, b) => a.sortIndex - b.sortIndex)
