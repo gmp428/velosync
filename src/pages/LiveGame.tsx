@@ -252,7 +252,7 @@ export default function LiveGame() {
   // circles. The 3rd out is never actually seen filled in because the
   // inning auto-advances (and resets this to 0) the instant it's logged.
   const outsThisInning = (gameAtBats ?? []).filter(
-    (a) => (a.inning ?? curInning) === curInning
+    (a) => (a.inning ?? curInning) === curInning && (a.half ?? half) === half
       && (a.outcome === 'out' || a.outcome === 'strikeout' || a.outcome === 'ghost_out'),
   ).length
 
@@ -372,6 +372,7 @@ export default function LiveGame() {
       batterId,
       pitcherId: game.currentPitcherId!,
       inning: game.currentInning ?? 1,
+      half,
       startedAt: Date.now(),
       updatedAt: now(),
       ...pendingSync(),
@@ -507,6 +508,14 @@ export default function LiveGame() {
           <div className="ghost-flash-card">
             <div className="ghost-flash-title">Ghost Batter</div>
             <div className="ghost-flash-sub">Out {ghostFlash}</div>
+          </div>
+        </div>
+      )}
+      {inningTransition && (
+        <div className="ghost-flash-overlay static" onClick={resumeAfterInningTransition}>
+          <div className="ghost-flash-card">
+            <div className="ghost-flash-title">{inningTransition.label}</div>
+            <div className="ghost-flash-sub">Tap to resume next inning</div>
           </div>
         </div>
       )}
