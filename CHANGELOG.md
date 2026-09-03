@@ -4,8 +4,19 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
-### Planned
-- "Middle/End of the Nth" tap-to-continue message after 3 outs end a half (PR #11, in review).
+## [0.7.0] — 2026-09-02
+
+### Added
+- "Middle of the Nth"/"End of the Nth" tap-to-continue message after 3 outs end your pitching half — pauses indefinitely until tapped, then resumes to the next batter. Wording depends on home/away (home pitches top, so "Middle of..."; away pitches bottom, so "End of...").
+
+### Fixed
+- New games now always start from the team menu's current batting order, instead of sometimes reverting to a stale snapshot of the previous finished game's order (which ignored any manual reordering done afterward on the team menu).
+- Half no longer alternates top/bottom mid-game — it's fixed for the whole game by home/away (this app only tracks the opponent's at-bats against our pitcher, so there's no real "our half" to switch to).
+- A ghost out landing as the 3rd out of a half now actually ends it (previously silently ignored).
+- Ghost-out auto-advance no longer breaks mid-transaction and dumps the coach on "who's up to bat" instead of continuing automatically.
+- Unlimited ghost batters could previously be added mid-game — capped at exactly one, only offered at 8 active players.
+- A ghost-out slot added on the team menu now lands in its correct lineup position when a game starts, instead of always at the bottom.
+— PR #11
 
 ## [0.6.0] — 2026-09-02
 
