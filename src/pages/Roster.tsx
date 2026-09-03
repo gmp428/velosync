@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, displayName, GHOST_OUT, newId, now, pendingSync } from '../db'
 import LineupEditor from '../components/LineupEditor'
+import NumberPadInput from '../components/NumberPadInput'
 
 export default function Roster() {
   const { id } = useParams()
@@ -53,6 +54,14 @@ export default function Roster() {
   const [lastName, setLastName] = useState('')
   const [number, setNumber] = useState('')
   const [bats, setBats] = useState<'L' | 'R'>('R')
+  // Quick jersey-number-only entry: paste/type a whole opposing lineup's
+  // numbers at once (space/comma separated), in the order handed over on
+  // the lineup card — creates unnamed "Batter #N" placeholders in that
+  // exact order, checked into today's lineup, so a coach can start the
+  // game within the couple minutes before first pitch and fill in real
+  // names later between innings.
+  const [quickNumbers, setQuickNumbers] = useState('')
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
 
   const resetForm = () => {
     setEditingId(null)
@@ -65,8 +74,15 @@ export default function Roster() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
     const first = firstName.trim()
-    if (!first) return
-    const fields = { firstName: first, lastName: lastName.trim(), number: number.trim(), bats, updatedAt: now(), ...pendingSync() }
+    const num = number.trim()
+    // Require SOMETHING to identify the batter by — either a name or a
+    // jersey number (a number-only entry displays as "Batter #N" via
+    // displayName's fallback until a real name is added later).
+    if (!first && !num) return
+    const fields = {
+      firstName: first || undefined, lastName: lastName.trim() || undefined,
+      number: num, bats, updatedAt: now(), ...pendingSync(),
+    }
     if (editingId !== null) {
       await db.batters.update(editingId, fields)
     } else {
@@ -81,6 +97,33 @@ export default function Roster() {
       await db.batters.add({ id: newId(), opponentId, sortIndex: nextSortIndex, activeToday, ...fields })
     }
     resetForm()
+  }
+
+  // Quick-add a whole opposing lineup by jersey number only, in the exact
+  // order typed/pasted (matching the order on a physical lineup card) —
+  // creates one unnamed batter per number, all checked into today's
+  // lineup, appended after anything already on the roster. Splits on
+  // commas, spaces, or newlines so "3 7 12" / "3,7,12" / one-per-line all
+  // work without the coach needing to think about formatting under time
+  // pressure.
+  const quickAddByNumbers = async () => {
+    const nums = quickNumbers.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
+    if (nums.length === 0) return
+    const baseSortIndex = batters && batters.length > 0
+      ? Math.max(...batters.map((b) => b.sortIndex ?? 0)) + 1
+      : 0
+    await db.batters.bulkAdd(nums.map((num, i) => ({
+      id: newId(),
+      opponentId,
+      number: num,
+      bats: 'R' as const,
+      sortIndex: baseSortIndex + i,
+      activeToday: true,
+      updatedAt: now(),
+      ...pendingSync(),
+    })))
+    setQuickNumbers('')
+    setShowQuickAdd(false)
   }
 
   // Persists both the real batters' sortIndex AND (if a ghost slot is
@@ -136,6 +179,7 @@ export default function Roster() {
   const startEdit = (batterId: string) => {
     const b = batters?.find((x) => x.id === batterId)
     if (!b) return
+    setShowQuickAdd(false)
     setEditingId(batterId)
     setFirstName(b.firstName ?? b.name ?? '')
     setLastName(b.lastName ?? '')
@@ -287,8 +331,30 @@ export default function Roster() {
         </div>
         <div className="row">
           <button type="submit" className="primary grow">Add batter</button>
+          <button type="button" className="small" onClick={() => setShowQuickAdd((v) => !v)}>
+            {showQuickAdd ? 'Close quick add' : '⚡ Quick add by #s'}
+          </button>
         </div>
       </form>
+
+      {showQuickAdd && editingId === null && (
+        <div className="card stack" style={{ marginTop: 8 }}>
+          <strong>Quick add by jersey number</strong>
+          <p className="muted" style={{ margin: 0 }}>
+            No time for names before first pitch? Tap in the numbers straight
+            off their lineup card, in order — e.g. "3, 7, 12, 21, 5". Creates
+            unnamed "Batter #N" placeholders, checked into today's lineup in
+            that exact order. Add real names later from the roster list
+            below whenever there's time.
+          </p>
+          <NumberPadInput value={quickNumbers} onChange={setQuickNumbers} />
+          <div className="row">
+            <button type="button" className="primary grow" onClick={quickAddByNumbers} disabled={!quickNumbers.trim()}>
+              Add lineup
+            </button>
+          </div>
+        </div>
+      )}
 
       <button className="danger" onClick={removeTeam} style={{ marginTop: 20 }}>Delete team</button>
     </main>
