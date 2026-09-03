@@ -5,7 +5,10 @@ import { db, defaultLineup, displayName, newId, now, pendingSync } from '../db'
 
 export default function NewGame() {
   const navigate = useNavigate()
-  const opponents = useLiveQuery(() => db.opponents.toArray(), [])
+  const opponents = useLiveQuery(
+    () => db.opponents.toArray().then((list) => list.sort((a, b) => a.name.localeCompare(b.name))),
+    []
+  )
   const pitchers = useLiveQuery(() => db.pitchers.toArray(), [])
   const [opponentId, setOpponentId] = useState<string | null>(null)
   const [pitcherId, setPitcherId] = useState<string | null>(null)

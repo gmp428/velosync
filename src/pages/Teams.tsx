@@ -4,7 +4,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, newId, now, pendingSync } from '../db'
 
 export default function Teams() {
-  const opponents = useLiveQuery(() => db.opponents.toArray(), [])
+  const opponents = useLiveQuery(
+    () => db.opponents.toArray().then((list) => list.sort((a, b) => a.name.localeCompare(b.name))),
+    []
+  )
   const batterCounts = useLiveQuery(async () => {
     const counts = new Map<string, number>()
     for (const b of await db.batters.toArray()) {
