@@ -541,45 +541,28 @@ export async function importAll(data: BackupFile): Promise<void> {
 
 // ---------- Lineup ----------
 
-// A game's default batting order: start from the most recent finished game's
-// lineup for this opponent, drop batters no longer on the roster or no longer
-// checked into today's lineup (activeToday), then append any active roster
-// batters not already in it. Falls back to plain roster order. Ghost-out
-// sentinels from a prior game are never carried forward — each game's
-// vacancies are decided fresh.
+// A game's default batting order: always the team menu's current saved
+// order (each batter's sortIndex, per-batter, ascending) among batters
+// checked into today's lineup (activeToday), plus the roster-level planned
+// ghost-out slot if set. This is deliberately the ONLY source of truth —
+// there used to also be a fallback to the previous finished game's own
+// frozen lineup snapshot, but that could go stale the moment a coach
+// edited the team menu afterward (ending a game already writes the played
+// order back into the team menu via persistLineupToRoster, so consulting
+// the old snapshot too just risked silently overriding a fresh manual
+// edit with stale data). Ghost-out sentinels from a prior GAME are never
+// carried forward automatically — only the roster-level planned slot
+// counts; each game's vacancies are otherwise decided fresh.
 export async function defaultLineup(opponentId: string): Promise<string[]> {
   const opponent = await db.opponents.get(opponentId)
   const roster = await db.batters.where('opponentId').equals(opponentId).toArray()
   const active = roster.filter((b) => b.activeToday !== false).slice(0, MAX_ACTIVE_LINEUP)
-  const activeSet = new Set(active.map((b) => b.id))
-  // Fallback order when there's no prior lineup to inherit: the coach's saved
-  // batting order (sortIndex), not raw insertion order. Splices in the
-  // roster-level planned ghost-out slot (see Opponent.ghostOutEnabled) if set.
   const items: Array<{ id: string; sortIndex: number }> = active.map((b) => ({ id: b.id, sortIndex: b.sortIndex ?? 0 }))
   if (opponent?.ghostOutEnabled) {
     items.push({ id: GHOST_OUT, sortIndex: opponent.ghostOutSortIndex ?? Infinity })
   }
   items.sort((a, b) => a.sortIndex - b.sortIndex)
-  const bySortIndex = items.map((i) => i.id)
-
-  const games = await db.games.where('opponentId').equals(opponentId).toArray()
-  const prev = games
-    .filter((g) => g.status === 'finished' && g.lineup && g.lineup.length > 0)
-    .sort((a, b) => b.updatedAt - a.updatedAt)[0]
-
-  if (!prev?.lineup) return bySortIndex
-  const kept = prev.lineup.filter((id) => id !== GHOST_OUT && activeSet.has(id))
-  // Merge: walk the team menu's current full order (bySortIndex) as the
-  // position skeleton. Anywhere it lands on a batter that also played last
-  // game, take the NEXT batter from `kept` instead (preserving any in-game
-  // drag reordering from that game). Anywhere it lands on something brand
-  // new since then — a newly checked-in batter, or (critically) a ghost-out
-  // slot just added on the team menu — insert it directly at that position,
-  // rather than dumping every new item at the end regardless of where the
-  // coach actually placed it.
-  const keptSet = new Set(kept)
-  let ki = 0
-  return bySortIndex.map((id) => (keptSet.has(id) ? kept[ki++] : id))
+  return items.map((i) => i.id)
 }
 
 // When a game ends, its final lineup (the order actually batted, including any
