@@ -291,20 +291,41 @@ export default function LiveGame() {
   }
 
   // Reassign the current at-bat (and any pitches already logged in it) to a
-  // different batter — for when the wrong batter was picked. Corrects the
-  // batting order too (the chosen batter moves into the current slot), always
-  // persisting a clean, duplicate-free order so the fix is remembered and
-  // auto-advance keeps working.
+  // different batter — for when the wrong batter was picked. The batter
+  // mistakenly selected never actually had their turn, so they shouldn't
+  // disappear from the order or get skipped later — the fix SWAPS the two
+  // batters' positions: newBatterId takes over the current turn, and the
+  // wrong batter moves to newBatterId's old spot, so they're still due up
+  // normally whenever that position comes around again. (The previous
+  // version of this fix incorrectly dropped the wrong batter out of the
+  // order entirely, silently shifting everyone after them by one slot and
+  // corrupting who bats next — this is the real fix for that bug.)
   const switchBatter = async (newBatterId: string) => {
     if (!openAtBat || newBatterId === openAtBat.batterId) {
       setChangingBatter(false)
       return
     }
-    const without = order.filter((idv) => idv !== newBatterId)
-    const at = without.indexOf(openAtBat.batterId)
-    const newLineup = at === -1
-      ? [newBatterId, ...without]
-      : [...without.slice(0, at), newBatterId, ...without.slice(at)]
+    const wrongId = openAtBat.batterId
+    const wrongIdx = order.indexOf(wrongId)
+    const newIdx = order.indexOf(newBatterId)
+    let newLineup: string[]
+    if (wrongIdx === -1) {
+      // Wrong batter isn't even in the order (shouldn't normally happen) —
+      // just insert the correct batter at that spot without losing anyone.
+      newLineup = order.filter((id) => id !== newBatterId)
+      newLineup = newIdx === -1 ? [newBatterId, ...newLineup] : newLineup
+    } else if (newIdx === -1) {
+      // Correct batter isn't in the order yet (e.g. bench player) — put
+      // them in the wrong batter's slot; the wrong batter moves to the end
+      // so they're still in the game, just after everyone else for now.
+      newLineup = order.map((id) => (id === wrongId ? newBatterId : id))
+      newLineup.push(wrongId)
+    } else {
+      // Normal case: both are already in the order — swap their positions.
+      newLineup = [...order]
+      newLineup[wrongIdx] = newBatterId
+      newLineup[newIdx] = wrongId
+    }
     await db.transaction('rw', db.atBats, db.pitches, db.games, async () => {
       await db.atBats.update(openAtBat.id, { batterId: newBatterId, updatedAt: now(), ...pendingSync() })
       await db.pitches.where('atBatId').equals(openAtBat.id).modify({ batterId: newBatterId, updatedAt: now(), ...pendingSync() })
