@@ -88,9 +88,11 @@ export interface Batter {
   syncedAt?: number | null
 }
 
-// A batting order has at most 9 active slots (no minimum — local/rec ball
-// commonly plays short-handed with zero penalty). Enforced in the roster UI.
-export const MAX_ACTIVE_LINEUP = 9
+// No upper cap on active batters — leagues that run Extra Hitter/DP-Flex
+// (or just want more bats in the order) can check in as many as they want.
+// GHOST_OUT_THRESHOLD is the boundary below which a ghost-out slot makes
+// sense (a standard lineup is 9; at or under 8 the team is short-handed).
+export const GHOST_OUT_THRESHOLD = 8
 
 export interface Pitcher {
   id: string
@@ -560,9 +562,17 @@ export async function importAll(data: BackupFile): Promise<void> {
 export async function defaultLineup(opponentId: string): Promise<string[]> {
   const opponent = await db.opponents.get(opponentId)
   const roster = await db.batters.where('opponentId').equals(opponentId).toArray()
-  const active = roster.filter((b) => b.activeToday !== false).slice(0, MAX_ACTIVE_LINEUP)
+  const active = roster.filter((b) => b.activeToday !== false)
   const items: Array<{ id: string; sortIndex: number }> = active.map((b) => ({ id: b.id, sortIndex: b.sortIndex ?? 0 }))
-  if (opponent?.ghostOutEnabled) {
+  // Ghost-out only makes sense when the team is short-handed (<=8 active) —
+  // matches the roster screen's own display rule. The opponent's
+  // ghostOutEnabled flag alone isn't enough: a coach can enable it at 8
+  // active, then check in a 9th+ batter afterward, and the flag stays set
+  // (it's not auto-cleared) even though the roster screen correctly hides
+  // the ghost row once there's no room for it. Without this guard, a new
+  // game would silently add a ghost-out slot the coach can no longer even
+  // see or remove from the team menu.
+  if (opponent?.ghostOutEnabled && active.length <= GHOST_OUT_THRESHOLD) {
     items.push({ id: GHOST_OUT, sortIndex: opponent.ghostOutSortIndex ?? Infinity })
   }
   items.sort((a, b) => a.sortIndex - b.sortIndex)
