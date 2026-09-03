@@ -4,6 +4,12 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-09-03
+
+### Added
+- "Add batter to order" picker in the live-game Batting order panel — lets a coach add a real, benched, or newly-added roster batter directly into an already-started game's order, without needing to delete anyone first. Fills a real gap: previously the only way to modify an in-progress game's order was reorder, remove, or add-a-ghost-slot, with no way back onto the order for a real batter once removed.
+— PR #14
+
 ## [0.9.0] — 2026-09-03
 
 ### Added
