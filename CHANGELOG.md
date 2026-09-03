@@ -4,6 +4,11 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-09-03
+
+### Fixed
+- "Wrong batter?" correction mid-game silently corrupted the batting order downstream. The fix swapped the correct batter into the mistaken batter's slot but never removed the mistaken batter from the order — leaving both in the lineup and shifting everyone after that point by one, so the next batter up after that at-bat wasn't actually correct. Now a genuine swap: the two batters exchange positions, with no batters gained, lost, or duplicated.
+
 ## [0.10.0] — 2026-09-03
 
 ### Added
