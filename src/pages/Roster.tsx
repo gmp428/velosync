@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, displayName, GHOST_OUT, newId, now, pendingSync } from '../db'
 import LineupEditor from '../components/LineupEditor'
+import NumberPadInput from '../components/NumberPadInput'
 
 export default function Roster() {
   const { id } = useParams()
@@ -340,19 +341,13 @@ export default function Roster() {
         <div className="card stack" style={{ marginTop: 8 }}>
           <strong>Quick add by jersey number</strong>
           <p className="muted" style={{ margin: 0 }}>
-            No time for names before first pitch? Type or paste the numbers
-            straight off their lineup card, in order (spaces, commas, or new
-            lines all work) — e.g. "3 7 12 21 5". Creates unnamed "Batter #N"
-            placeholders, checked into today's lineup in that exact order.
-            Add real names later from the roster list below whenever there's time.
+            No time for names before first pitch? Tap in the numbers straight
+            off their lineup card, in order — e.g. "3, 7, 12, 21, 5". Creates
+            unnamed "Batter #N" placeholders, checked into today's lineup in
+            that exact order. Add real names later from the roster list
+            below whenever there's time.
           </p>
-          <textarea
-            value={quickNumbers}
-            onChange={(e) => setQuickNumbers(e.target.value)}
-            placeholder="3 7 12 21 5 9 14 18 2"
-            rows={3}
-            style={{ width: '100%', fontSize: '1.1rem', fontFamily: 'inherit' }}
-          />
+          <NumberPadInput value={quickNumbers} onChange={setQuickNumbers} />
           <div className="row">
             <button type="button" className="primary grow" onClick={quickAddByNumbers} disabled={!quickNumbers.trim()}>
               Add lineup

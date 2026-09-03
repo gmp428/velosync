@@ -325,3 +325,21 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   80% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* Custom on-screen numeric keypad for quick jersey-number entry — a real
+   dialer-style grid so a coach can enter digits AND a comma separator
+   without fighting the phone's native keyboard modes. */
+.numberpad-display {
+  min-height: 44px; padding: 10px 12px; border-radius: 8px;
+  background: var(--panel-2); font-size: 1.2rem; font-weight: 600;
+  letter-spacing: 0.02em; word-break: break-all;
+}
+.numberpad-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.numberpad-key {
+  min-height: 52px; font-size: 1.3rem; font-weight: 700;
+  border-radius: 10px; background: var(--panel-2); color: var(--text);
+  border: none;
+}
+.numberpad-key:active { background: var(--panel-3, #d8dee8); }
