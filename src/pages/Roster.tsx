@@ -352,7 +352,6 @@ export default function Roster() {
             placeholder="3 7 12 21 5 9 14 18 2"
             rows={3}
             style={{ width: '100%', fontSize: '1.1rem', fontFamily: 'inherit' }}
-            inputMode="numeric"
           />
           <div className="row">
             <button type="button" className="primary grow" onClick={quickAddByNumbers} disabled={!quickNumbers.trim()}>
