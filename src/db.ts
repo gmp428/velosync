@@ -563,8 +563,17 @@ export async function defaultLineup(opponentId: string): Promise<string[]> {
 
   if (!prev?.lineup) return bySortIndex
   const kept = prev.lineup.filter((id) => id !== GHOST_OUT && activeSet.has(id))
-  const appended = bySortIndex.filter((id) => !kept.includes(id))
-  return [...kept, ...appended]
+  // Merge: walk the team menu's current full order (bySortIndex) as the
+  // position skeleton. Anywhere it lands on a batter that also played last
+  // game, take the NEXT batter from `kept` instead (preserving any in-game
+  // drag reordering from that game). Anywhere it lands on something brand
+  // new since then — a newly checked-in batter, or (critically) a ghost-out
+  // slot just added on the team menu — insert it directly at that position,
+  // rather than dumping every new item at the end regardless of where the
+  // coach actually placed it.
+  const keptSet = new Set(kept)
+  let ki = 0
+  return bySortIndex.map((id) => (keptSet.has(id) ? kept[ki++] : id))
 }
 
 // When a game ends, its final lineup (the order actually batted, including any
