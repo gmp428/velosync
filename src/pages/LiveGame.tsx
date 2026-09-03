@@ -397,7 +397,7 @@ export default function LiveGame() {
             batters={roster}
             onChange={(o) => db.games.update(gameId, { lineup: o, updatedAt: now(), ...pendingSync() })}
             onRemoveBatter={(batterId) => db.batters.update(batterId, { activeToday: false, updatedAt: now(), ...pendingSync() })}
-            allowGhostAdd
+            allowGhostAdd={order.length === 8 && !order.includes(GHOST_OUT)}
           />
         </div>
       )}
