@@ -5,7 +5,15 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 ## [Unreleased]
 
 ### Planned
-- Out tracker, inning indicator, and home/away game start.
+- "Middle/End of the Nth" tap-to-continue message after 3 outs end a half (PR #11, in review).
+
+## [0.6.0] — 2026-09-02
+
+### Added
+- Home/away picker on "Start a game" — sets who pitches first and auto-configures the correct starting inning half.
+- Out tracker — three circles next to the pitch count, fill in live as outs happen this half (counts ghost outs too).
+- Inning indicator — a number with a ▲/▼ triangle (up = top, down = bottom) next to the out tracker.
+— PR #9
 
 ## [0.5.0] — 2026-09-02
 
