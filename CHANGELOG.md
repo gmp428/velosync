@@ -4,6 +4,15 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-09-02
+
+### Changed
+- Removed the 9-max cap on active batters — check in as many as you want. Supports leagues that run Extra Hitter, DP-Flex, or Round Robin without any workaround needed. Ghost-out is still only offered when 8 or fewer are active (a standard lineup of 9+ isn't short-handed).
+
+### Fixed
+- A ghost-out slot could silently carry into a new game even after checking in a 9th+ batter, because the team menu correctly hid the ghost row from view but never actually cleared the underlying flag. Starting a new game now enforces the same ≤8 rule directly.
+— PR #12
+
 ## [0.7.0] — 2026-09-02
 
 ### Added
