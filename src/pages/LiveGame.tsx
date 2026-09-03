@@ -10,6 +10,39 @@ import SuggestionPanel from '../components/SuggestionPanel'
 import LineupEditor from '../components/LineupEditor'
 import { battleAgg, battleRate, byZoneBattle, outcomeBreakdown, pct } from '../lib/stats'
 
+type Half = 'top' | 'bottom'
+
+// "1st", "2nd", "3rd", "4th"..."11th","12th","13th","21st", etc.
+function ordinal(n: number): string {
+  const suffixes = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return `${n}${suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]}`
+}
+
+async function countOuts(gameId: string, inning: number, half: Half): Promise<number> {
+  const abs = await db.atBats.where('gameId').equals(gameId).toArray()
+  return abs.filter(
+    (a) => (a.inning ?? inning) === inning && (a.half ?? half) === half
+      && (a.outcome === 'out' || a.outcome === 'strikeout' || a.outcome === 'ghost_out'),
+  ).length
+}
+
+// Checks whether the half just played out to 3 outs. If so, advances the
+// game's stored inning/half (top -> bottom of the SAME inning; bottom -> top
+// of the NEXT inning) and returns the transition to show the coach. Returns
+// null if the half continues as-is (fewer than 3 outs so far).
+async function checkInningEnd(
+  gameId: string, inning: number, half: Half,
+): Promise<{ label: string; newInning: number; newHalf: Half } | null> {
+  const outs = await countOuts(gameId, inning, half)
+  if (outs < 3) return null
+  const newHalf: Half = half === 'top' ? 'bottom' : 'top'
+  const newInning = half === 'top' ? inning : inning + 1
+  const label = half === 'top' ? `Middle of the ${ordinal(inning)}` : `End of the ${ordinal(inning)}`
+  await db.games.update(gameId, { currentInning: newInning, half: newHalf, updatedAt: now(), ...pendingSync() })
+  return { label, newInning, newHalf }
+}
+
 // Opens the next real batter's at-bat starting at `fromIndex` in `order`,
 // auto-logging a scoreless "ghost out" AtBat (batterId = GHOST_OUT sentinel,
 // outcome = 'ghost_out') for every vacant slot walked past along the way —
@@ -18,52 +51,61 @@ import { battleAgg, battleRate, byZoneBattle, outcomeBreakdown, pct } from '../l
 // so identity alone can't tell two ghost slots apart. Bounded to one lap so
 // an all-ghost order (no real batters left) can't spin forever.
 //
-// Re-checks the 3-outs-per-inning rule after EVERY ghost out logged (not
-// just after real at-bats) — a ghost out can itself be the 3rd out. This is
-// ALWAYS tracked (not gated by any capture-preset setting) since the out
-// count/inning are core gameplay, not an optional field.
+// Re-checks the 3-outs-per-half rule after EVERY ghost out logged (not just
+// after real at-bats) — a ghost out can itself end the half. The MOMENT that
+// happens, this function stops advancing (does NOT open the slot after the
+// ending out, even if it's a real batter) and returns a `transition` with
+// enough info to resume from the right spot once the coach taps past the
+// "Middle/End of the Nth" message — mid-game half changes shouldn't be
+// silently skipped past.
 //
 // IMPORTANT: this function only does fast, synchronous DB writes — no UI
-// timers. It's always called from inside a db.transaction(), and awaiting a
-// real setTimeout mid-transaction makes Dexie mark the transaction inactive,
-// silently failing every write after it. The out numbers for each ghost out
-// walked past are returned so the CALLER can show the "Ghost Batter" flash
-// sequence after the transaction has fully committed.
+// timers. It's always called from inside (or immediately after) a
+// db.transaction(), and awaiting a real setTimeout mid-transaction makes
+// Dexie mark the transaction inactive, silently failing every write after
+// it. The out numbers for each ghost out walked past are returned so the
+// CALLER can show the "Ghost Batter" flash sequence once the transaction
+// (and any DB writes here) have fully committed.
 async function openNextRealAtBat(
-  gameId: string, order: string[], fromIndex: number, pitcherId: string, inning: number,
-): Promise<number[]> {
+  gameId: string, order: string[], fromIndex: number, pitcherId: string, inning: number, half: Half,
+): Promise<{
+  ghostOutNums: number[]
+  opened: boolean
+  transition?: { label: string; resumeIdx: number; newInning: number; newHalf: Half }
+}> {
   const ghostOutNums: number[] = []
-  if (order.length === 0) return ghostOutNums
+  if (order.length === 0) return { ghostOutNums, opened: false }
   let idx = ((fromIndex % order.length) + order.length) % order.length
-  let curInning = inning
   for (let steps = 0; steps < order.length; steps++) {
     const slot = order[idx]
     if (slot !== GHOST_OUT) {
       await db.atBats.add({
-        id: newId(), gameId, batterId: slot, pitcherId, inning: curInning,
+        id: newId(), gameId, batterId: slot, pitcherId, inning, half,
         startedAt: Date.now(), updatedAt: now(), ...pendingSync(),
       })
-      return ghostOutNums
+      return { ghostOutNums, opened: true }
     }
     await db.atBats.add({
-      id: newId(), gameId, batterId: GHOST_OUT, pitcherId, outcome: 'ghost_out', inning: curInning,
+      id: newId(), gameId, batterId: GHOST_OUT, pitcherId, outcome: 'ghost_out', inning, half,
       startedAt: Date.now(), updatedAt: now(), ...pendingSync(),
     })
-    const gameAbs = await db.atBats.where('gameId').equals(gameId).toArray()
-    const outNum = gameAbs.filter(
-      (a) => (a.inning ?? curInning) === curInning
-        && (a.outcome === 'out' || a.outcome === 'strikeout' || a.outcome === 'ghost_out'),
-    ).length
-    if (outNum >= 3) {
-      curInning += 1
-      await db.games.update(gameId, { currentInning: curInning, updatedAt: now(), ...pendingSync() })
-    }
+    const outNum = await countOuts(gameId, inning, half)
     ghostOutNums.push(outNum)
+    if (outNum >= 3) {
+      const t = await checkInningEnd(gameId, inning, half)
+      return {
+        ghostOutNums,
+        opened: false,
+        transition: t
+          ? { label: t.label, resumeIdx: (idx + 1) % order.length, newInning: t.newInning, newHalf: t.newHalf }
+          : undefined,
+      }
+    }
     idx = (idx + 1) % order.length
   }
   // Every slot is a ghost out — nothing real to bat. Leave the game idle
   // rather than looping forever; the coach needs to check a real batter in.
-  return ghostOutNums
+  return { ghostOutNums, opened: false }
 }
 
 export default function LiveGame() {
@@ -118,6 +160,17 @@ export default function LiveGame() {
   // order auto-advances past, so a skipped turn is visible instead of
   // silently jumping to the next real batter. null = not showing.
   const [ghostFlash, setGhostFlash] = useState<number | null>(null)
+  // "Middle/End of the Nth" tap-to-continue overlay shown after 3 outs end a
+  // half. Holds what to resume once tapped: the lineup order to advance
+  // (frozen at the moment the half ended) and where to resume from.
+  const [inningTransition, setInningTransition] = useState<{
+    label: string
+    order: string[]
+    resumeIdx: number
+    newInning: number
+    newHalf: Half
+    pitcherId: string
+  } | null>(null)
   const bootingRef = useRef(false)
 
   // If a pitcher change removes the selected pitch type from the arsenal, clear it
@@ -143,6 +196,33 @@ export default function LiveGame() {
     }
   }
 
+  // Common handling for whatever openNextRealAtBat found: play the ghost
+  // flashes it walked past, then if a half ended, show the tap-to-continue
+  // overlay (frozen with everything needed to resume once tapped) instead of
+  // opening the next at-bat right away.
+  const handleAdvanceResult = async (
+    result: Awaited<ReturnType<typeof openNextRealAtBat>>, order: string[], pitcherId: string,
+  ) => {
+    await flashGhosts(result.ghostOutNums)
+    if (result.transition) {
+      setInningTransition({
+        label: result.transition.label, order, resumeIdx: result.transition.resumeIdx,
+        newInning: result.transition.newInning, newHalf: result.transition.newHalf, pitcherId,
+      })
+    }
+  }
+
+  // Coach tapped past the "Middle/End of the Nth" message — resume opening
+  // the next real batter's at-bat (auto-skipping any further ghost-out
+  // slots) from right where the half left off.
+  const resumeAfterInningTransition = async () => {
+    const t = inningTransition
+    if (!t) return
+    setInningTransition(null)
+    const result = await openNextRealAtBat(gameId, t.order, t.resumeIdx, t.pitcherId, t.newInning, t.newHalf)
+    await handleAdvanceResult(result, t.order, t.pitcherId)
+  }
+
   // Auto-start the leadoff hitter when an active game has no at-bats yet.
   // If the lineup opens with one or more ghost-out slots, those are logged
   // automatically first and the first real batter's at-bat opens instead.
@@ -152,8 +232,8 @@ export default function LiveGame() {
     const lu = game.lineup && game.lineup.length ? game.lineup : (roster ?? []).map((b) => b.id)
     if (lu.length === 0 || bootingRef.current) return
     bootingRef.current = true
-    openNextRealAtBat(gameId, lu, 0, game.currentPitcherId!, game.currentInning ?? 1)
-      .then(flashGhosts)
+    openNextRealAtBat(gameId, lu, 0, game.currentPitcherId!, game.currentInning ?? 1, game.half ?? 'top')
+      .then((r) => handleAdvanceResult(r, lu, game.currentPitcherId!))
       .finally(() => { bootingRef.current = false })
   }, [game?.status, atBatCount, game?.lineup, game?.currentPitcherId, gameId, roster])
 
@@ -275,10 +355,11 @@ export default function LiveGame() {
     // after any other out. Runs AFTER the transaction commits (see
     // openNextRealAtBat's comment on why it can't be awaited from inside one).
     if (becameGhostOut) {
-      const outNums = await openNextRealAtBat(
-        gameId, newLineup, at === -1 ? newLineup.length - 1 : at, game.currentPitcherId ?? openAtBat!.pitcherId, curInning,
+      const result = await openNextRealAtBat(
+        gameId, newLineup, at === -1 ? newLineup.length - 1 : at, game.currentPitcherId ?? openAtBat!.pitcherId,
+        curInning, half,
       )
-      await flashGhosts(outNums)
+      await handleAdvanceResult(result, newLineup, game.currentPitcherId ?? openAtBat!.pitcherId)
     }
     setSubstitutingFor(null)
     setShowSubstitutePanel(false)
@@ -332,38 +413,41 @@ export default function LiveGame() {
       })
       if (outcome) {
         await db.atBats.update(openAtBat.id, { outcome, updatedAt: now(), ...pendingSync() })
-        // Inning auto-advance: once 3 outs are recorded in the current inning,
-        // roll to the next one so the next at-bat is stamped with it. Ghost
-        // outs count as outs too — a vacated slot still costs the inning.
-        // Always tracked, regardless of the "detailed capture" display
-        // preference — outs/innings are core gameplay, not optional.
-        let nextInning = curInning
-        if (outcome === 'out' || outcome === 'strikeout') {
-          const gameAbs = await db.atBats.where('gameId').equals(gameId).toArray()
-          const outs = gameAbs.filter(
-            (a) => (a.inning ?? curInning) === curInning
-              && (a.outcome === 'out' || a.outcome === 'strikeout' || a.outcome === 'ghost_out'),
-          ).length
-          if (outs >= 3) {
-            nextInning = curInning + 1
-            await db.games.update(gameId, { currentInning: nextInning, updatedAt: now(), ...pendingSync() })
-          }
-        }
       }
     })
     if (outcome) {
-      // Auto-advance: open the next batter's at-bat per the lineup order,
-      // auto-logging (and skipping past) any ghost-out slots in between.
       // Runs AFTER the transaction above commits (see openNextRealAtBat's
-      // comment on why it can't be awaited from inside one).
-      const curIdx = order.indexOf(openAtBat.batterId)
-      if (curIdx !== -1 && order.length > 0) {
-        const gameAfter = await db.games.get(gameId)
-        const outNums = await openNextRealAtBat(
-          gameId, order, curIdx + 1, game.currentPitcherId ?? openAtBat.pitcherId,
-          gameAfter?.currentInning ?? curInning,
-        )
-        await flashGhosts(outNums)
+      // comment on why none of this can be awaited from inside one).
+      // Inning/half auto-advance: once 3 outs are recorded in the current
+      // half, roll to the next one (top -> bottom of the same inning;
+      // bottom -> top of the next) and show the coach a tap-to-continue
+      // message instead of silently opening the next at-bat. Ghost outs
+      // count as outs too — a vacated slot still costs the half.
+      let nextInning = curInning
+      let nextHalf: Half = half
+      let transitionLabel: string | undefined
+      if (outcome === 'out' || outcome === 'strikeout') {
+        const t = await checkInningEnd(gameId, curInning, half)
+        if (t) { nextInning = t.newInning; nextHalf = t.newHalf; transitionLabel = t.label }
+      }
+      if (transitionLabel) {
+        const curIdx = order.indexOf(openAtBat.batterId)
+        setInningTransition({
+          label: transitionLabel, order,
+          resumeIdx: curIdx !== -1 ? (curIdx + 1) % order.length : 0,
+          newInning: nextInning, newHalf: nextHalf,
+          pitcherId: game.currentPitcherId ?? openAtBat.pitcherId,
+        })
+      } else {
+        // Auto-advance: open the next batter's at-bat per the lineup order,
+        // auto-logging (and skipping past) any ghost-out slots in between.
+        const curIdx = order.indexOf(openAtBat.batterId)
+        if (curIdx !== -1 && order.length > 0) {
+          const advResult = await openNextRealAtBat(
+            gameId, order, curIdx + 1, game.currentPitcherId ?? openAtBat.pitcherId, nextInning, nextHalf,
+          )
+          await handleAdvanceResult(advResult, order, game.currentPitcherId ?? openAtBat.pitcherId)
+        }
       }
     }
     setSelType(null)
