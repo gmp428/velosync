@@ -296,37 +296,45 @@ export default function LiveGame() {
   // disappear from the order or get skipped later — the fix SWAPS the two
   // batters' positions: newBatterId takes over the current turn, and the
   // wrong batter moves to newBatterId's old spot, so they're still due up
-  // normally whenever that position comes around again. (The previous
-  // version of this fix incorrectly dropped the wrong batter out of the
-  // order entirely, silently shifting everyone after them by one slot and
-  // corrupting who bats next — this is the real fix for that bug.)
+  // normally whenever that position comes around again.
+  //
+  // IMPORTANT: computes against the DATABASE's actual current lineup, read
+  // fresh inside the same transaction — never the `order` variable captured
+  // at render time. Real bug this fixes: reordering the batting order, then
+  // immediately using "Wrong batter?" to correct who's up, could compute the
+  // swap against a stale pre-reorder snapshot if the screen hadn't yet
+  // caught up with the reorder's own write — silently reverting the reorder
+  // the moment this swap's write landed. Reading live, in-transaction state
+  // closes that gap regardless of how quickly the two actions happen.
   const switchBatter = async (newBatterId: string) => {
     if (!openAtBat || newBatterId === openAtBat.batterId) {
       setChangingBatter(false)
       return
     }
     const wrongId = openAtBat.batterId
-    const wrongIdx = order.indexOf(wrongId)
-    const newIdx = order.indexOf(newBatterId)
-    let newLineup: string[]
-    if (wrongIdx === -1) {
-      // Wrong batter isn't even in the order (shouldn't normally happen) —
-      // just insert the correct batter at that spot without losing anyone.
-      newLineup = order.filter((id) => id !== newBatterId)
-      newLineup = newIdx === -1 ? [newBatterId, ...newLineup] : newLineup
-    } else if (newIdx === -1) {
-      // Correct batter isn't in the order yet (e.g. bench player) — put
-      // them in the wrong batter's slot; the wrong batter moves to the end
-      // so they're still in the game, just after everyone else for now.
-      newLineup = order.map((id) => (id === wrongId ? newBatterId : id))
-      newLineup.push(wrongId)
-    } else {
-      // Normal case: both are already in the order — swap their positions.
-      newLineup = [...order]
-      newLineup[wrongIdx] = newBatterId
-      newLineup[newIdx] = wrongId
-    }
     await db.transaction('rw', db.atBats, db.pitches, db.games, async () => {
+      const liveGame = await db.games.get(gameId)
+      const liveOrder = liveGame?.lineup && liveGame.lineup.length > 0 ? liveGame.lineup : order
+      const wrongIdx = liveOrder.indexOf(wrongId)
+      const newIdx = liveOrder.indexOf(newBatterId)
+      let newLineup: string[]
+      if (wrongIdx === -1) {
+        // Wrong batter isn't even in the order (shouldn't normally happen) —
+        // just insert the correct batter at that spot without losing anyone.
+        newLineup = liveOrder.filter((id) => id !== newBatterId)
+        newLineup = newIdx === -1 ? [newBatterId, ...newLineup] : newLineup
+      } else if (newIdx === -1) {
+        // Correct batter isn't in the order yet (e.g. bench player) — put
+        // them in the wrong batter's slot; the wrong batter moves to the end
+        // so they're still in the game, just after everyone else for now.
+        newLineup = liveOrder.map((id) => (id === wrongId ? newBatterId : id))
+        newLineup.push(wrongId)
+      } else {
+        // Normal case: both are already in the order — swap their positions.
+        newLineup = [...liveOrder]
+        newLineup[wrongIdx] = newBatterId
+        newLineup[newIdx] = wrongId
+      }
       await db.atBats.update(openAtBat.id, { batterId: newBatterId, updatedAt: now(), ...pendingSync() })
       await db.pitches.where('atBatId').equals(openAtBat.id).modify({ batterId: newBatterId, updatedAt: now(), ...pendingSync() })
       await db.games.update(gameId, { lineup: newLineup, updatedAt: now(), ...pendingSync() })
@@ -357,13 +365,21 @@ export default function LiveGame() {
       return
     }
     const replacement = incomingId ?? GHOST_OUT
-    const without = order.filter((idv) => idv !== incomingId)
-    const at = without.indexOf(outgoingId)
-    const newLineup = at === -1
-      ? [...without, replacement]
-      : [...without.slice(0, at), replacement, ...without.slice(at + 1)]
     let becameGhostOut = false
+    let newLineup: string[] = order
+    let at = -1
     await db.transaction('rw', db.atBats, db.pitches, db.games, db.substitutions, async () => {
+      // Same fix as switchBatter: compute against the database's actual
+      // current lineup, read fresh here, not the `order` snapshot captured
+      // at render time — otherwise a reorder immediately followed by a
+      // substitute could silently revert the reorder.
+      const liveGame = await db.games.get(gameId)
+      const liveOrder = liveGame?.lineup && liveGame.lineup.length > 0 ? liveGame.lineup : order
+      const without = liveOrder.filter((idv) => idv !== incomingId)
+      at = without.indexOf(outgoingId)
+      newLineup = at === -1
+        ? [...without, replacement]
+        : [...without.slice(0, at), replacement, ...without.slice(at + 1)]
       // If the outgoing player is at bat right now with no pitches thrown
       // yet, hand off (real sub) or convert (ghost out) the in-progress
       // at-bat. If pitches were already logged, leave that turn as real
@@ -458,7 +474,14 @@ export default function LiveGame() {
     })
     if (outcome) {
       // Runs AFTER the transaction above commits (see openNextRealAtBat's
-      // comment on why none of this can be awaited from inside one).
+      // comment on why none of this can be awaited from inside one). Reads
+      // the DATABASE's actual current lineup fresh here — not the `order`
+      // variable captured at render time — so a reorder (or a Wrong-batter/
+      // Substitute correction) made moments before this pitch resolves is
+      // always respected when deciding who's up next, instead of the
+      // now-stale render-time order silently winning the race.
+      const liveGame = await db.games.get(gameId)
+      const liveOrder = liveGame?.lineup && liveGame.lineup.length > 0 ? liveGame.lineup : order
       // Inning/half auto-advance: once 3 outs are recorded in the current
       // half, roll to the next one (top -> bottom of the same inning;
       // bottom -> top of the next) and show the coach a tap-to-continue
@@ -472,22 +495,22 @@ export default function LiveGame() {
         if (t) { nextInning = t.newInning; nextHalf = t.newHalf; transitionLabel = t.label }
       }
       if (transitionLabel) {
-        const curIdx = order.indexOf(openAtBat.batterId)
+        const curIdx = liveOrder.indexOf(openAtBat.batterId)
         setInningTransition({
-          label: transitionLabel, order,
-          resumeIdx: curIdx !== -1 ? (curIdx + 1) % order.length : 0,
+          label: transitionLabel, order: liveOrder,
+          resumeIdx: curIdx !== -1 ? (curIdx + 1) % liveOrder.length : 0,
           newInning: nextInning, newHalf: nextHalf,
           pitcherId: game.currentPitcherId ?? openAtBat.pitcherId,
         })
       } else {
         // Auto-advance: open the next batter's at-bat per the lineup order,
         // auto-logging (and skipping past) any ghost-out slots in between.
-        const curIdx = order.indexOf(openAtBat.batterId)
-        if (curIdx !== -1 && order.length > 0) {
+        const curIdx = liveOrder.indexOf(openAtBat.batterId)
+        if (curIdx !== -1 && liveOrder.length > 0) {
           const advResult = await openNextRealAtBat(
-            gameId, order, curIdx + 1, game.currentPitcherId ?? openAtBat.pitcherId, nextInning, nextHalf,
+            gameId, liveOrder, curIdx + 1, game.currentPitcherId ?? openAtBat.pitcherId, nextInning, nextHalf,
           )
-          await handleAdvanceResult(advResult, order, game.currentPitcherId ?? openAtBat.pitcherId)
+          await handleAdvanceResult(advResult, liveOrder, game.currentPitcherId ?? openAtBat.pitcherId)
         }
       }
     }
