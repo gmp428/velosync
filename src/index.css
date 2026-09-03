@@ -286,3 +286,24 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .bad { color: var(--bad); }
 
 .empty { text-align: center; color: var(--muted); padding: 24px 12px; }
+
+/* Transient "Ghost Batter — Out N" flash: fades in, holds, fades out while
+   the auto-advance logs the ghost out and moves to the next real batter. */
+.ghost-flash-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 23, 42, 0.55);
+  animation: ghost-flash-fade 3s ease-in-out forwards;
+}
+.ghost-flash-card {
+  background: var(--panel, #fff); border-radius: 16px;
+  padding: 28px 40px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+}
+.ghost-flash-title { font-size: 1.4rem; font-weight: 700; font-style: italic; }
+.ghost-flash-sub { margin-top: 6px; color: var(--muted); font-size: 1rem; }
+@keyframes ghost-flash-fade {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}

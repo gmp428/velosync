@@ -17,24 +17,45 @@ import { battleAgg, battleRate, byZoneBattle, outcomeBreakdown, pct } from '../l
 // (not batterId-based) because the GHOST_OUT sentinel repeats across slots,
 // so identity alone can't tell two ghost slots apart. Bounded to one lap so
 // an all-ghost order (no real batters left) can't spin forever.
+//
+// Re-checks the 3-outs-per-inning rule after EVERY ghost out logged (not
+// just after real at-bats) — a ghost out can itself be the 3rd out. When
+// capInning is on and onGhostFlash is given, it's awaited before continuing
+// to the next slot, so the caller can show a brief "Ghost Batter" screen in
+// sync with each ghost out actually being recorded.
 async function openNextRealAtBat(
   gameId: string, order: string[], fromIndex: number, pitcherId: string, inning: number,
+  capInning = false, onGhostFlash?: (outNum: number) => Promise<void>,
 ): Promise<void> {
   if (order.length === 0) return
   let idx = ((fromIndex % order.length) + order.length) % order.length
+  let curInning = inning
   for (let steps = 0; steps < order.length; steps++) {
     const slot = order[idx]
     if (slot !== GHOST_OUT) {
       await db.atBats.add({
-        id: newId(), gameId, batterId: slot, pitcherId, inning,
+        id: newId(), gameId, batterId: slot, pitcherId, inning: curInning,
         startedAt: Date.now(), updatedAt: now(), ...pendingSync(),
       })
       return
     }
     await db.atBats.add({
-      id: newId(), gameId, batterId: GHOST_OUT, pitcherId, outcome: 'ghost_out', inning,
+      id: newId(), gameId, batterId: GHOST_OUT, pitcherId, outcome: 'ghost_out', inning: curInning,
       startedAt: Date.now(), updatedAt: now(), ...pendingSync(),
     })
+    let outNum = 0
+    if (capInning) {
+      const gameAbs = await db.atBats.where('gameId').equals(gameId).toArray()
+      outNum = gameAbs.filter(
+        (a) => (a.inning ?? curInning) === curInning
+          && (a.outcome === 'out' || a.outcome === 'strikeout' || a.outcome === 'ghost_out'),
+      ).length
+      if (outNum >= 3) {
+        curInning += 1
+        await db.games.update(gameId, { currentInning: curInning, updatedAt: now(), ...pendingSync() })
+      }
+    }
+    if (onGhostFlash) await onGhostFlash(outNum)
     idx = (idx + 1) % order.length
   }
   // Every slot is a ghost out — nothing real to bat. Leave the game idle
@@ -88,6 +109,10 @@ export default function LiveGame() {
   const [showSubstitutePanel, setShowSubstitutePanel] = useState(false)
   // Showing the drag-to-reorder lineup panel
   const [showLineup, setShowLineup] = useState(false)
+  // Transient "Ghost Batter — Out N" flash shown for each ghost-out slot the
+  // order auto-advances past, so a skipped turn is visible instead of
+  // silently jumping to the next real batter. null = not showing.
+  const [ghostFlash, setGhostFlash] = useState<number | null>(null)
   const bootingRef = useRef(false)
 
   // If a pitcher change removes the selected pitch type from the arsenal, clear it
@@ -101,6 +126,14 @@ export default function LiveGame() {
     setChangingBatter(false)
   }, [openAtBat?.batterId])
 
+  // Shows the "Ghost Batter — Out N" flash for the configured hold time,
+  // awaited so openNextRealAtBat pauses between successive ghost outs
+  // instead of blowing through several in an instant.
+  const flashGhost = (outNum: number) => new Promise<void>((resolve) => {
+    setGhostFlash(outNum)
+    setTimeout(() => { setGhostFlash(null); resolve() }, 3000)
+  })
+
   // Auto-start the leadoff hitter when an active game has no at-bats yet.
   // If the lineup opens with one or more ghost-out slots, those are logged
   // automatically first and the first real batter's at-bat opens instead.
@@ -110,8 +143,10 @@ export default function LiveGame() {
     const lu = game.lineup && game.lineup.length ? game.lineup : (roster ?? []).map((b) => b.id)
     if (lu.length === 0 || bootingRef.current) return
     bootingRef.current = true
-    openNextRealAtBat(gameId, lu, 0, game.currentPitcherId!, game.currentInning ?? 1)
-      .finally(() => { bootingRef.current = false })
+    openNextRealAtBat(
+      gameId, lu, 0, game.currentPitcherId!, game.currentInning ?? 1,
+      settings?.capture?.inning ?? CAPTURE_PRESETS.standard.inning, flashGhost,
+    ).finally(() => { bootingRef.current = false })
   }, [game?.status, atBatCount, game?.lineup, game?.currentPitcherId, gameId, roster])
 
   if (!game || !opponent || !roster || !pitchers || !pitchTypes) return null
@@ -219,7 +254,10 @@ export default function LiveGame() {
       // immediately advance to the next real batter, same as commit() does
       // after any other out.
       if (openAtBat && openAtBat.batterId === outgoingId && (abPitches?.length ?? 0) === 0 && !incomingId) {
-        await openNextRealAtBat(gameId, newLineup, at === -1 ? newLineup.length - 1 : at, game.currentPitcherId ?? openAtBat.pitcherId, curInning)
+        await openNextRealAtBat(
+          gameId, newLineup, at === -1 ? newLineup.length - 1 : at, game.currentPitcherId ?? openAtBat.pitcherId,
+          curInning, cap.inning, flashGhost,
+        )
       }
     })
     setSubstitutingFor(null)
@@ -293,7 +331,10 @@ export default function LiveGame() {
         // auto-logging (and skipping past) any ghost-out slots in between.
         const curIdx = order.indexOf(openAtBat.batterId)
         if (curIdx !== -1 && order.length > 0) {
-          await openNextRealAtBat(gameId, order, curIdx + 1, game.currentPitcherId ?? openAtBat.pitcherId, nextInning)
+          await openNextRealAtBat(
+            gameId, order, curIdx + 1, game.currentPitcherId ?? openAtBat.pitcherId,
+            nextInning, cap.inning, flashGhost,
+          )
         }
       }
     })
@@ -349,6 +390,14 @@ export default function LiveGame() {
 
   return (
     <main>
+      {ghostFlash !== null && (
+        <div className="ghost-flash-overlay">
+          <div className="ghost-flash-card">
+            <div className="ghost-flash-title">Ghost Batter</div>
+            <div className="ghost-flash-sub">Out {ghostFlash}</div>
+          </div>
+        </div>
+      )}
       <div className="row spread">
         <h1 style={{ margin: '8px 0' }}>vs {opponent.name}</h1>
         <span className="muted">{gamePitchCount ?? 0} pitches</span>
