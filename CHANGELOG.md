@@ -4,6 +4,16 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-09-03
+
+### Added
+- Quick jersey-number-only batter entry — for when there's no time to type full names between lineup-card exchange and first pitch. Type or tap in just the numbers to create unnamed "Batter #N" placeholders, checked into today's lineup in that exact order; add real names later whenever there's time.
+- Custom on-screen numeric keypad (0-9 + comma + backspace) for the quick-add flow, since no native mobile keyboard mode offers both digits and a comma separator at once.
+
+### Changed
+- `firstName` is now optional on a batter (previously required) to support the jersey-number-only entry above. `displayName()`/`fullName()` fall back to a "Batter #N" placeholder anywhere a name would normally show.
+— PR #13
+
 ## [0.8.0] — 2026-09-02
 
 ### Changed
