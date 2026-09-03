@@ -209,6 +209,10 @@ export interface AtBat {
   pitcherId: string
   outcome?: AtBatOutcome
   inning?: number // inning this at-bat occurred in (undefined = untracked)
+  half?: 'top' | 'bottom' // which half of the inning this at-bat happened in
+                           // (undefined on older data = assume it matches the
+                           // game's current half at read time, so historical
+                           // in-progress games don't get miscounted)
   startedAt: number
   updatedAt: number
   syncStatus: SyncStatus
