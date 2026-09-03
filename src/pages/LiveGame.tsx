@@ -19,6 +19,16 @@ function ordinal(n: number): string {
   return `${n}${suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]}`
 }
 
+// This app only tracks PITCHES OUR PITCHER THROWS — the "batters" in the
+// lineup are always the opponent's. Our own at-bats aren't logged at all.
+// So which half we pitch in is FIXED for the whole game by home/away, and
+// never alternates: home pitches the top of every inning; away pitches the
+// bottom of every inning. Each 3-outs just bumps the inning number and
+// returns straight to pitching the SAME half next inning.
+function pitchingHalf(homeAway: 'home' | 'away' | undefined): Half {
+  return homeAway === 'away' ? 'bottom' : 'top'
+}
+
 async function countOuts(gameId: string, inning: number, half: Half): Promise<number> {
   const abs = await db.atBats.where('gameId').equals(gameId).toArray()
   return abs.filter(
@@ -27,20 +37,22 @@ async function countOuts(gameId: string, inning: number, half: Half): Promise<nu
   ).length
 }
 
-// Checks whether the half just played out to 3 outs. If so, advances the
-// game's stored inning/half (top -> bottom of the SAME inning; bottom -> top
-// of the NEXT inning) and returns the transition to show the coach. Returns
-// null if the half continues as-is (fewer than 3 outs so far).
+// Checks whether the current inning's pitching half just played out to 3
+// outs. If so, bumps the inning number (half never changes — see
+// pitchingHalf above) and returns the transition message to show the coach:
+// "Middle of the Nth" when we pitch the top (we're now batting, still in
+// the same numbered inning until we retake the mound), "End of the Nth"
+// when we pitch the bottom (the whole numbered inning is now over for
+// everyone). Returns null if the half continues as-is (fewer than 3 outs).
 async function checkInningEnd(
   gameId: string, inning: number, half: Half,
 ): Promise<{ label: string; newInning: number; newHalf: Half } | null> {
   const outs = await countOuts(gameId, inning, half)
   if (outs < 3) return null
-  const newHalf: Half = half === 'top' ? 'bottom' : 'top'
-  const newInning = half === 'top' ? inning : inning + 1
+  const newInning = inning + 1
   const label = half === 'top' ? `Middle of the ${ordinal(inning)}` : `End of the ${ordinal(inning)}`
-  await db.games.update(gameId, { currentInning: newInning, half: newHalf, updatedAt: now(), ...pendingSync() })
-  return { label, newInning, newHalf }
+  await db.games.update(gameId, { currentInning: newInning, half, updatedAt: now(), ...pendingSync() })
+  return { label, newInning, newHalf: half }
 }
 
 // Opens the next real batter's at-bat starting at `fromIndex` in `order`,
@@ -232,7 +244,10 @@ export default function LiveGame() {
     const lu = game.lineup && game.lineup.length ? game.lineup : (roster ?? []).map((b) => b.id)
     if (lu.length === 0 || bootingRef.current) return
     bootingRef.current = true
-    openNextRealAtBat(gameId, lu, 0, game.currentPitcherId!, game.currentInning ?? 1, game.half ?? 'top')
+    openNextRealAtBat(
+      gameId, lu, 0, game.currentPitcherId!, game.currentInning ?? 1,
+      game.homeAway ? pitchingHalf(game.homeAway) : (game.half ?? 'top'),
+    )
       .then((r) => handleAdvanceResult(r, lu, game.currentPitcherId!))
       .finally(() => { bootingRef.current = false })
   }, [game?.status, atBatCount, game?.lineup, game?.currentPitcherId, gameId, roster])
@@ -244,7 +259,11 @@ export default function LiveGame() {
   const arsenal = pitcherArsenal(currentPitcher, pitchTypes)
   const cap = settings?.capture ?? CAPTURE_PRESETS.standard
   const curInning = game.currentInning ?? 1
-  const half = game.half ?? 'top'
+  // The half we pitch is fixed by home/away for the whole game (see
+  // pitchingHalf's comment) — never derived from the stored game.half for a
+  // game that HAS homeAway set. Older games created before that field
+  // existed fall back to the legacy manually-toggled game.half.
+  const half = game.homeAway ? pitchingHalf(game.homeAway) : (game.half ?? 'top')
   const halfLabel = half === 'top' ? 'Top' : 'Bot'
 
   // Outs so far in the current inning half — the same tally the
@@ -548,7 +567,9 @@ export default function LiveGame() {
       {cap.inning && (
         <div className="row" style={{ marginTop: 8 }}>
           <button className="small" onClick={() => setInning(curInning - 1)} disabled={curInning <= 1} aria-label="Previous inning">‹</button>
-          <button className="chip small-chip" onClick={toggleHalf} title="Switch top / bottom">{halfLabel}</button>
+          {!game.homeAway && (
+            <button className="chip small-chip" onClick={toggleHalf} title="Switch top / bottom">{halfLabel}</button>
+          )}
           <span className="count-display" style={{ fontSize: '1.1rem' }}>Inning {curInning}</span>
           <button className="small" onClick={() => setInning(curInning + 1)}>Next inning ▸</button>
         </div>
