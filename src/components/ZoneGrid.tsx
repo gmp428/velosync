@@ -168,6 +168,14 @@ export default function ZoneGrid(props: {
           </button>
         )
       })}
+      {/* Strike-zone border + internal tic-tac-toe lines, drawn on top of
+          whatever's in the cells (color, numbers) so the 3x3 zone boundary
+          stays visible even when the grid is busy with heat-map data. Pure
+          overlay — no pointer-events, doesn't affect taps on the cells
+          beneath it. Sized to the coarse layout's 3x3 (columns/rows 2-4);
+          identical placement works for granular since its 3x3 in-zone core
+          sits in the same spot. */}
+      <div className="zone-strike-outline" aria-hidden="true" />
     </div>
   )
 }
