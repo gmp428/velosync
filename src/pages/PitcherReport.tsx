@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, fullName, getSettings, pitcherArsenal, saveSettings } from '../db'
+import { db, displayName, fullName, getSettings, pitcherArsenal, saveSettings, type Zone, zoneLabel } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
 import {
-  aggregate, byPitchType, byZoneBattle, commandAgg, commandRate, filterByWindow, pct, successRate,
+  aggregate, byPitchType, byZoneBattle, commandAgg, commandGrouping, commandRate, filterByWindow, pct, successRate,
   WINDOW_LABELS, type TimeWindow,
 } from '../lib/stats'
 
@@ -23,6 +23,8 @@ export default function PitcherReport() {
   const settings = useLiveQuery(() => getSettings(), [])
 
   const [win, setWin] = useState<TimeWindow>('all')
+  const [groupingPitchType, setGroupingPitchType] = useState<string | 'all'>('all')
+  const [drillDownZone, setDrillDownZone] = useState<Zone | null>(null)
 
   if (!pitcher || !pitches || !allGames || !allBatters || !pitchTypes || !settings) return null
 
@@ -32,6 +34,9 @@ export default function PitcherReport() {
   const heat = byZoneBattle(viewPitches)
   const resolution = settings.capture.granularZones ? 'granular' : 'coarse'
   const command = commandAgg(viewPitches, settings.commandMatchMode, resolution)
+  const groupingPitches = groupingPitchType === 'all' ? viewPitches : viewPitches.filter((p) => p.pitchTypeId === groupingPitchType)
+  const grouping = resolution === 'granular' ? commandGrouping(groupingPitches) : new Map()
+  const drillDown = drillDownZone !== null ? grouping.get(drillDownZone) : undefined
 
   // Per-batter results for this pitcher
   const byBatter = new Map<string, typeof overall>()
@@ -105,6 +110,49 @@ export default function PitcherReport() {
               </div>
               {resolution === 'coarse' && (
                 <p className="muted">Turn on "Granular foul zones" in Settings for a high/low/arm-side/glove-side miss-direction breakdown.</p>
+              )}
+
+              {resolution === 'granular' && (
+                <>
+                  <h3 style={{ marginTop: 16 }}>Grouping heat map</h3>
+                  <p className="muted">
+                    Color shows how tightly clustered actual pitches were around each intended target —
+                    green = tight grouping, red = scattered. Tap a target zone to see exactly where those
+                    pitches actually landed.
+                  </p>
+                  <div className="chips">
+                    <button className={`chip ${groupingPitchType === 'all' ? 'on' : ''}`} onClick={() => { setGroupingPitchType('all'); setDrillDownZone(null) }}>
+                      All pitches
+                    </button>
+                    {pitchTypes.filter((t) => typeAggs.has(t.id)).map((t) => (
+                      <button key={t.id} className={`chip ${groupingPitchType === t.id ? 'on' : ''}`} onClick={() => { setGroupingPitchType(t.id); setDrillDownZone(null) }}>
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                  <ZoneGrid
+                    grouping={grouping}
+                    granular
+                    selected={drillDownZone}
+                    onSelect={(z) => setDrillDownZone(drillDownZone === z ? null : z)}
+                  />
+                  {drillDown && (
+                    <div className="card stack">
+                      <strong>Target: {zoneLabel(drillDown.intended)} · {drillDown.count} pitches</strong>
+                      <p className="muted" style={{ margin: 0 }}>Where they actually landed:</p>
+                      <div className="list">
+                        {[...drillDown.actualBreakdown.entries()]
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([zone, count]) => (
+                            <div key={String(zone)} className="list-item">
+                              <span className="grow">{zoneLabel(zone)}</span>
+                              <span className="pill">{count}</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

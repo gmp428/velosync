@@ -1,7 +1,7 @@
 import type { Zone } from '../db'
 import { normalizeZone } from '../db'
-import type { BattleAgg } from '../lib/stats'
-import { battleRate } from '../lib/stats'
+import type { BattleAgg, GroupingCell } from '../lib/stats'
+import { battleRate, groupingColor } from '../lib/stats'
 
 // Strike zone from the catcher's point of view: a 3x3 in-zone grid surrounded
 // by four out-of-zone strips (high / low / left / right).
@@ -76,10 +76,11 @@ export default function ZoneGrid(props: {
   selected?: Zone | null
   onSelect?: (z: Zone) => void
   heat?: Map<Zone, BattleAgg>
+  grouping?: Map<Zone, GroupingCell> // command grouping heat map (granular only, see stats.ts commandGrouping)
   compact?: boolean
   granular?: boolean
 }) {
-  const { selected, onSelect, heat, compact, granular } = props
+  const { selected, onSelect, heat, grouping, compact, granular } = props
   const CELLS = granular ? CELLS_GRANULAR : CELLS_COARSE
   const resolution = granular ? 'granular' : 'coarse'
   return (
@@ -88,7 +89,15 @@ export default function ZoneGrid(props: {
         const inZone = typeof zone === 'number'
         let bg: string | undefined
         let text = label ?? ''
-        if (heat) {
+        if (grouping) {
+          const cell = grouping.get(zone)
+          if (cell) {
+            bg = groupingColor(cell.avgDistance)
+            text = String(cell.count)
+          } else if (!onSelect) {
+            text = ''
+          }
+        } else if (heat) {
           // Normalize so a pitch logged at the OTHER resolution (e.g. from a
           // Standard-preset stretch, or before a coach switched settings)
           // still counts toward this cell instead of silently vanishing.

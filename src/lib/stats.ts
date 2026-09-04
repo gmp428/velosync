@@ -330,6 +330,71 @@ export function commandRate(a: CommandAgg): number | null {
   return a.total === 0 ? null : a.hit / a.total
 }
 
+// ---------- Command grouping heat map (granular resolution only) ----------
+// For every granular zone a pitcher was aiming at (intendedZone), how tight
+// was the actual grouping? Chebyshev ("king move") distance is used per G's
+// exact spec: same zone = 1, any ring-1 neighbor INCLUDING diagonals = 2,
+// ring 2 = 3, and so on outward. Averaging these per target zone gives a
+// continuous "how scattered were the misses" score per target, distinct
+// from the binary hit/miss of commandAgg() above.
+//
+// Only meaningful at granular resolution — the coarse layout's 4 outer
+// zones each span 3 grid cells, so "how many rings away" isn't well-defined
+// there the way it is on the uniform 5x5 granular grid.
+export interface GroupingCell {
+  intended: Zone
+  avgDistance: number   // 1 = perfect, higher = more scattered
+  count: number         // pitches aimed at this zone
+  actualBreakdown: Map<Zone, number>  // for drill-down: where they actually landed
+}
+
+function chebyshevDistance(a: Zone, b: Zone): number | null {
+  const ca = GRANULAR_COORDS[String(a)]
+  const cb = GRANULAR_COORDS[String(b)]
+  if (!ca || !cb) return null
+  return Math.max(Math.abs(ca[0] - cb[0]), Math.abs(ca[1] - cb[1])) + 1
+}
+
+// Pitches must already be normalized to granular resolution by the caller
+// (normalizeZone both intendedZone and zone before calling this) if the
+// dataset might mix coarse- and granular-logged pitches.
+export function commandGrouping(pitches: Pitch[]): Map<Zone, GroupingCell> {
+  const byIntended = new Map<Zone, Pitch[]>()
+  for (const p of pitches) {
+    if (p.intendedZone === undefined) continue
+    const arr = byIntended.get(p.intendedZone)
+    if (arr) arr.push(p)
+    else byIntended.set(p.intendedZone, [p])
+  }
+  const result = new Map<Zone, GroupingCell>()
+  for (const [intended, ps] of byIntended) {
+    let sum = 0
+    let n = 0
+    const actualBreakdown = new Map<Zone, number>()
+    for (const p of ps) {
+      const d = chebyshevDistance(intended, p.zone)
+      if (d === null) continue // shouldn't happen at granular resolution
+      sum += d
+      n++
+      actualBreakdown.set(p.zone, (actualBreakdown.get(p.zone) ?? 0) + 1)
+    }
+    if (n > 0) result.set(intended, { intended, avgDistance: sum / n, count: n, actualBreakdown })
+  }
+  return result
+}
+
+// Green (tight/good) -> yellow -> orange -> red (scattered/bad). avgDistance
+// of 1 is a perfect green; scales up to red by avgDistance 4+ (a reasonable
+// "very scattered" ceiling on a 5x5 grid where the max possible distance
+// from center is 5). Clamped so any distance beyond that still reads as red
+// rather than going off-scale.
+export function groupingColor(avgDistance: number): string {
+  const t = Math.max(0, Math.min(1, (avgDistance - 1) / 3)) // 0 at dist 1, 1 at dist 4+
+  // green (120°) -> yellow (60°) -> orange (30°) -> red (0°)
+  const hue = Math.round(120 * (1 - t))
+  return `hsl(${hue}, 70%, 45%)`
+}
+
 
 export function byCount(pitches: Pitch[]): Array<{ key: string; pitches: Pitch[] }> {
   const m = new Map<string, Pitch[]>()
