@@ -130,18 +130,18 @@ export default function PitcherReport() {
                       </button>
                     ))}
                   </div>
-                  {drillDown && (
-                    <p className="muted" style={{ marginBottom: 4 }}>
-                      Showing landing spots for <strong style={{ color: 'var(--text)' }}>{drillDown.count}</strong> pitches
-                      aimed at <strong style={{ color: 'var(--text)' }}>{zoneLabel(drillDown.intended)}</strong>
-                    </p>
-                  )}
                   <ZoneGrid
                     grouping={grouping}
                     granular
                     selected={drillDownZone}
                     onSelect={(z) => setDrillDownZone(drillDownZone === z ? null : z)}
                   />
+                  {drillDown && (
+                    <p className="muted" style={{ marginTop: 4 }}>
+                      Showing landing spots for <strong style={{ color: 'var(--text)' }}>{drillDown.count}</strong> pitches
+                      aimed at <strong style={{ color: 'var(--text)' }}>{zoneLabel(drillDown.intended)}</strong>
+                    </p>
+                  )}
                 </>
               )}
             </>
