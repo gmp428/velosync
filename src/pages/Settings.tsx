@@ -134,30 +134,6 @@ export default function Settings() {
         </div>
       )}
 
-      {settings.capture.intendedLocation && (
-        <div className="card stack" style={{ marginTop: 8 }}>
-          <strong>Command % strictness</strong>
-          <p className="muted" style={{ margin: 0 }}>
-            How close a pitch has to land to its intended target to count as "hit the target" in reports.
-            Doesn't affect what's logged — safe to change any time.
-          </p>
-          <div className="chips">
-            <button
-              className={`chip ${settings.commandMatchMode === 'tight' ? 'on' : ''}`}
-              onClick={() => saveSettings({ commandMatchMode: 'tight' })}
-            >
-              Tight — exact zone only
-            </button>
-            <button
-              className={`chip ${settings.commandMatchMode === 'loose' ? 'on' : ''}`}
-              onClick={() => saveSettings({ commandMatchMode: 'loose' })}
-            >
-              Loose — same or adjacent zone
-            </button>
-          </div>
-        </div>
-      )}
-
       <h2>Pitch types</h2>
       <div className="list">
         {pitchTypes.map((t) => (

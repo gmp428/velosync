@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, fullName, getSettings, pitcherArsenal } from '../db'
+import { db, displayName, fullName, getSettings, pitcherArsenal, saveSettings } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
 import {
   aggregate, byPitchType, byZoneBattle, commandAgg, commandRate, filterByWindow, pct, successRate,
@@ -76,10 +76,23 @@ export default function PitcherReport() {
             <>
               <h2>Command</h2>
               <p className="muted">
-                {command.total} pitches with an intended target logged · mode: {settings.commandMatchMode === 'tight' ? 'tight (exact zone)' : 'loose (same or adjacent zone)'}
-                {' '}— change in Settings.
+                {command.total} pitches with an intended target logged
               </p>
-              <div className="card row spread">
+              <div className="chips">
+                <button
+                  className={`chip ${settings.commandMatchMode === 'tight' ? 'on' : ''}`}
+                  onClick={() => saveSettings({ commandMatchMode: 'tight' })}
+                >
+                  Tight — exact zone only
+                </button>
+                <button
+                  className={`chip ${settings.commandMatchMode === 'loose' ? 'on' : ''}`}
+                  onClick={() => saveSettings({ commandMatchMode: 'loose' })}
+                >
+                  Loose — same or adjacent zone
+                </button>
+              </div>
+              <div className="card row spread" style={{ marginTop: 8 }}>
                 <span className="good">{pct(commandRate(command) ?? 0)} hit target</span>
                 {resolution === 'granular' && (
                   <>
