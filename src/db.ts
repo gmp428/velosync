@@ -230,8 +230,17 @@ export interface AtBat {
 }
 
 // Zones from the catcher's point of view.
-// 1-9 are the strike zone (1 = up/left, 9 = down/right), o-* are out of the zone.
-export type Zone = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 'o-up' | 'o-down' | 'o-left' | 'o-right'
+// 1-9 are the strike zone (1 = up/left, 9 = down/right).
+// o-* are the coarse (Standard/Quick) out-of-zone strips.
+// og-* are the granular (Detailed, when granularZones is on) out-of-zone
+// cells: each side split into thirds, plus the 4 corners.
+export type CoarseOutZone = 'o-up' | 'o-down' | 'o-left' | 'o-right'
+export type GranularOutZone =
+  | 'og-up-left-corner' | 'og-up-left-third' | 'og-up-middle-third' | 'og-up-right-third' | 'og-up-right-corner'
+  | 'og-down-left-corner' | 'og-down-left-third' | 'og-down-middle-third' | 'og-down-right-third' | 'og-down-right-corner'
+  | 'og-left-up-third' | 'og-left-middle-third' | 'og-left-down-third'
+  | 'og-right-up-third' | 'og-right-middle-third' | 'og-right-down-third'
+export type Zone = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | CoarseOutZone | GranularOutZone
 
 export type PitchResult = 'ball' | 'called_strike' | 'swinging_strike' | 'foul' | 'in_play' | 'hbp'
 
@@ -267,8 +276,7 @@ export type LoggingPreset = 'quick' | 'standard' | 'detailed' | 'custom'
 export interface CaptureFlags {
   strikeType: boolean       // called vs swinging strike (off → single "Strike")
   inPlayDetail: boolean     // full hit types (off → just Out / Hit)
-  hbp: boolean              // hit-by-pitch as a pitch outcome
-  inning: boolean           // tag pitches/at-bats by inning + inning control
+  granularZones: boolean    // split each out-of-zone strip into thirds + corners
   // Future capture steps — flags exist so the UI can gate them as they ship.
   intendedLocation: boolean
   fieldPosition: boolean
@@ -283,15 +291,15 @@ export interface AppSettings {
 }
 
 const CAPTURE_QUICK: CaptureFlags = {
-  strikeType: false, inPlayDetail: false, hbp: false, inning: false,
+  strikeType: false, inPlayDetail: false, granularZones: false,
   intendedLocation: false, fieldPosition: false, battedBallType: false,
 }
 const CAPTURE_STANDARD: CaptureFlags = {
-  strikeType: true, inPlayDetail: true, hbp: true, inning: false,
+  strikeType: true, inPlayDetail: true, granularZones: false,
   intendedLocation: false, fieldPosition: false, battedBallType: false,
 }
 const CAPTURE_DETAILED: CaptureFlags = {
-  strikeType: true, inPlayDetail: true, hbp: true, inning: true,
+  strikeType: true, inPlayDetail: true, granularZones: true,
   intendedLocation: true, fieldPosition: true, battedBallType: true,
 }
 
@@ -303,7 +311,7 @@ export const CAPTURE_PRESETS: Record<'quick' | 'standard' | 'detailed', CaptureF
 
 // Capture flags that actually change logging today. The rest are shown in
 // Settings as "coming soon" so the framework is visible but honest.
-export const LIVE_CAPTURE_FLAGS: Array<keyof CaptureFlags> = ['strikeType', 'inPlayDetail', 'hbp', 'inning']
+export const LIVE_CAPTURE_FLAGS: Array<keyof CaptureFlags> = ['strikeType', 'inPlayDetail', 'granularZones']
 
 export function defaultSettings(): AppSettings {
   return { id: 'app', preset: 'standard', capture: { ...CAPTURE_STANDARD }, updatedAt: now() }
@@ -464,6 +472,49 @@ db.on('populate', async () => {
 
 export const ZONES_IN: Zone[] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 export const ZONES_OUT: Zone[] = ['o-up', 'o-down', 'o-left', 'o-right']
+export const ZONES_OUT_GRANULAR: Zone[] = [
+  'og-up-left-corner', 'og-up-left-third', 'og-up-middle-third', 'og-up-right-third', 'og-up-right-corner',
+  'og-down-left-corner', 'og-down-left-third', 'og-down-middle-third', 'og-down-right-third', 'og-down-right-corner',
+  'og-left-up-third', 'og-left-middle-third', 'og-left-down-third',
+  'og-right-up-third', 'og-right-middle-third', 'og-right-down-third',
+]
+
+// Coarse -> granular: used when a granular-resolution view (heat map, or the
+// granular picker itself) needs to place a pitch that was only ever logged
+// at coarse resolution (e.g. from a Standard/Quick-preset season, or before
+// this feature existed). Per G: default to the middle third of that side —
+// we genuinely don't know which third/corner it was, and "middle" is the
+// least-wrong default rather than guessing a corner.
+export const COARSE_TO_GRANULAR: Record<CoarseOutZone, GranularOutZone> = {
+  'o-up': 'og-up-middle-third',
+  'o-down': 'og-down-middle-third',
+  'o-left': 'og-left-middle-third',
+  'o-right': 'og-right-middle-third',
+}
+
+// Granular -> coarse: used when a coarse-resolution view (Standard/Quick
+// heat maps, or after a coach reverts from Detailed back down) needs to roll
+// up pitches that were logged with granular detail. Every granular cell in a
+// given row/column collapses to that side's single coarse zone — corners
+// belong to the row they're in (top corners -> up, bottom corners -> down),
+// per G's confirmed rule.
+export const GRANULAR_TO_COARSE: Record<GranularOutZone, CoarseOutZone> = {
+  'og-up-left-corner': 'o-up', 'og-up-left-third': 'o-up', 'og-up-middle-third': 'o-up', 'og-up-right-third': 'o-up', 'og-up-right-corner': 'o-up',
+  'og-down-left-corner': 'o-down', 'og-down-left-third': 'o-down', 'og-down-middle-third': 'o-down', 'og-down-right-third': 'o-down', 'og-down-right-corner': 'o-down',
+  'og-left-up-third': 'o-left', 'og-left-middle-third': 'o-left', 'og-left-down-third': 'o-left',
+  'og-right-up-third': 'o-right', 'og-right-middle-third': 'o-right', 'og-right-down-third': 'o-right',
+}
+
+// Normalizes any Zone to the given resolution, so a heat map/report can mix
+// pitches logged at different capture settings without silently dropping
+// any of them. In-zone (1-9) pitches pass through unchanged either way.
+export function normalizeZone(zone: Zone, resolution: 'coarse' | 'granular'): Zone {
+  if (typeof zone === 'number') return zone
+  if (resolution === 'granular') {
+    return zone.startsWith('og-') ? zone : COARSE_TO_GRANULAR[zone as CoarseOutZone]
+  }
+  return zone.startsWith('og-') ? GRANULAR_TO_COARSE[zone as GranularOutZone] : zone
+}
 
 export function zoneLabel(zone: Zone): string {
   if (typeof zone === 'number') {
@@ -472,7 +523,27 @@ export function zoneLabel(zone: Zone): string {
     if (row === 'middle' && col === 'center') return 'middle-middle'
     return `${row}-${col}`
   }
-  return { 'o-up': 'high (out of zone)', 'o-down': 'low (out of zone)', 'o-left': 'left (out of zone)', 'o-right': 'right (out of zone)' }[zone]
+  if (zone.startsWith('og-')) return GRANULAR_ZONE_LABELS[zone as GranularOutZone]
+  return { 'o-up': 'high (out of zone)', 'o-down': 'low (out of zone)', 'o-left': 'left (out of zone)', 'o-right': 'right (out of zone)' }[zone as CoarseOutZone]
+}
+
+const GRANULAR_ZONE_LABELS: Record<GranularOutZone, string> = {
+  'og-up-left-corner': 'high-left corner (out of zone)',
+  'og-up-left-third': 'high, left third (out of zone)',
+  'og-up-middle-third': 'high, middle third (out of zone)',
+  'og-up-right-third': 'high, right third (out of zone)',
+  'og-up-right-corner': 'high-right corner (out of zone)',
+  'og-down-left-corner': 'low-left corner (out of zone)',
+  'og-down-left-third': 'low, left third (out of zone)',
+  'og-down-middle-third': 'low, middle third (out of zone)',
+  'og-down-right-third': 'low, right third (out of zone)',
+  'og-down-right-corner': 'low-right corner (out of zone)',
+  'og-left-up-third': 'left, high third (out of zone)',
+  'og-left-middle-third': 'left, middle third (out of zone)',
+  'og-left-down-third': 'left, low third (out of zone)',
+  'og-right-up-third': 'right, high third (out of zone)',
+  'og-right-middle-third': 'right, middle third (out of zone)',
+  'og-right-down-third': 'right, low third (out of zone)',
 }
 
 export function resultLabel(p: { result: PitchResult; inPlay?: InPlayOutcome }): string {

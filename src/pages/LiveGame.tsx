@@ -600,16 +600,14 @@ export default function LiveGame() {
         <button className="small danger" onClick={endGame}>End game</button>
       </div>
 
-      {cap.inning && (
-        <div className="row" style={{ marginTop: 8 }}>
+      <div className="row" style={{ marginTop: 8 }}>
           <button className="small" onClick={() => setInning(curInning - 1)} disabled={curInning <= 1} aria-label="Previous inning">‹</button>
           {!game.homeAway && (
             <button className="chip small-chip" onClick={toggleHalf} title="Switch top / bottom">{halfLabel}</button>
           )}
           <span className="count-display" style={{ fontSize: '1.1rem' }}>Inning {curInning}</span>
           <button className="small" onClick={() => setInning(curInning + 1)}>Next inning ▸</button>
-        </div>
-      )}
+      </div>
 
       {showLineup && (
         <div className="card stack">
@@ -853,7 +851,7 @@ export default function LiveGame() {
           <>
           <h3>2. Location {selZone === null && <span className="muted" style={{ textTransform: 'none' }}>— tap where the pitch went</span>}</h3>
           <div className="zone-wrap">
-            <ZoneGrid selected={selZone} onSelect={setSelZone} heat={heat} />
+            <ZoneGrid selected={selZone} onSelect={setSelZone} heat={heat} granular={settings?.capture.granularZones} />
             {selZone !== null && (
               <div className="result-overlay">
                 <div className="row spread" style={{ marginBottom: 6 }}>
@@ -872,7 +870,7 @@ export default function LiveGame() {
                       <button onClick={() => commit('called_strike')}>Strike</button>
                     )}
                     <button onClick={() => commit('foul')}>Foul</button>
-                    {cap.hbp && <button onClick={() => commit('hbp')}>HBP</button>}
+                    <button onClick={() => commit('hbp')}>HBP</button>
                     <button className="wide primary" onClick={() => setShowInPlay(true)}>In play…</button>
                   </div>
                 ) : cap.inPlayDetail ? (

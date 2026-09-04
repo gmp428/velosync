@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, fullName, outcomeLabel, resultLabel, zoneLabel } from '../db'
+import { db, displayName, fullName, getSettings, outcomeLabel, resultLabel, zoneLabel } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
 import {
   aggregate, byCount, byPitcher, byPitchType, byZoneBattle, filterByWindow,
@@ -25,12 +25,13 @@ export default function BatterReport() {
   const allGames = useLiveQuery(() => db.games.toArray(), [])
   const pitchers = useLiveQuery(() => db.pitchers.toArray(), [])
   const pitchTypes = useLiveQuery(() => db.pitchTypes.toArray(), [])
+  const settings = useLiveQuery(() => getSettings(), [])
 
   const [win, setWin] = useState<TimeWindow>('all')
   const [pitcherFilter, setPitcherFilter] = useState<string | 'all'>('all')
   const [expandedAb, setExpandedAb] = useState<string | null>(null)
 
-  if (!batter || !opponent || !pitches || !atBats || !allGames || !pitchers || !pitchTypes) return null
+  if (!batter || !opponent || !pitches || !atBats || !allGames || !pitchers || !pitchTypes || !settings) return null
 
   const windowPitches = filterByWindow(pitches, allGames, win)
   const viewPitches = pitcherFilter === 'all'
@@ -96,7 +97,7 @@ export default function BatterReport() {
 
           <h2>Zone heat map</h2>
           <p className="muted">Green = our pitch won (strikes, fouls, outs), red = they hit it. Number = pitches there.</p>
-          <ZoneGrid heat={heat} />
+          <ZoneGrid heat={heat} granular={settings.capture.granularZones} />
 
           <h2>By pitch type</h2>
           <table>
