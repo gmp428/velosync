@@ -100,7 +100,11 @@ export default function ZoneGrid(props: {
             if (zone === selected) {
               const cell = grouping.get(zone)
               bg = cell ? groupingColor(cell.avgDistance) : undefined
-              text = cell ? String(cell.count) : ''
+              // Show how many pitches actually LANDED on target, matching
+              // every other zone's meaning (a landing-spot count) — not the
+              // total aimed here, which double-counted alongside the
+              // other zones' landed-elsewhere counts.
+              text = cell ? String(cell.actualBreakdown.get(zone) ?? 0) : ''
             } else {
               const selectedCell = grouping.get(selected)
               const landedCount = selectedCell?.actualBreakdown.get(zone) ?? 0
