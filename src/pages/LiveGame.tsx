@@ -430,7 +430,6 @@ export default function LiveGame() {
     setShowInPlay(false)
   }
 
-  const setInning = (n: number) => db.games.update(gameId, { currentInning: Math.max(1, n), updatedAt: now(), ...pendingSync() })
   const toggleHalf = () => db.games.update(gameId, { half: half === 'top' ? 'bottom' : 'top', updatedAt: now(), ...pendingSync() })
 
   const commit = async (result: PitchResult, inPlay?: InPlayOutcome) => {
@@ -601,12 +600,10 @@ export default function LiveGame() {
       </div>
 
       <div className="row" style={{ marginTop: 8 }}>
-          <button className="small" onClick={() => setInning(curInning - 1)} disabled={curInning <= 1} aria-label="Previous inning">‹</button>
           {!game.homeAway && (
             <button className="chip small-chip" onClick={toggleHalf} title="Switch top / bottom">{halfLabel}</button>
           )}
           <span className="count-display" style={{ fontSize: '1.1rem' }}>Inning {curInning}</span>
-          <button className="small" onClick={() => setInning(curInning + 1)}>Next inning ▸</button>
       </div>
 
       {showLineup && (
