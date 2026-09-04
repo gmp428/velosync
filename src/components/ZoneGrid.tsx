@@ -90,12 +90,35 @@ export default function ZoneGrid(props: {
         let bg: string | undefined
         let text = label ?? ''
         if (grouping) {
-          const cell = grouping.get(zone)
-          if (cell) {
-            bg = groupingColor(cell.avgDistance)
-            text = String(cell.count)
-          } else if (!onSelect) {
-            text = ''
+          if (selected !== null && selected !== undefined) {
+            // Drill-down mode: the selected target zone keeps its original
+            // grouping color (frozen), every other zone shows a neutral
+            // background with the count of pitches (aimed at the selected
+            // target) that actually LANDED there. Tapping the selected zone
+            // again (handled by the caller toggling `selected` back to null)
+            // returns to the normal overall heat map.
+            if (zone === selected) {
+              const cell = grouping.get(zone)
+              bg = cell ? groupingColor(cell.avgDistance) : undefined
+              text = cell ? String(cell.count) : ''
+            } else {
+              const selectedCell = grouping.get(selected)
+              const landedCount = selectedCell?.actualBreakdown.get(zone) ?? 0
+              if (landedCount > 0) {
+                bg = '#475569' // neutral slate, distinct from the green-red grouping scale
+                text = String(landedCount)
+              } else {
+                text = ''
+              }
+            }
+          } else {
+            const cell = grouping.get(zone)
+            if (cell) {
+              bg = groupingColor(cell.avgDistance)
+              text = String(cell.count)
+            } else if (!onSelect) {
+              text = ''
+            }
           }
         } else if (heat) {
           // Normalize so a pitch logged at the OTHER resolution (e.g. from a

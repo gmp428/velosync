@@ -117,8 +117,8 @@ export default function PitcherReport() {
                   <h3 style={{ marginTop: 16 }}>Grouping heat map</h3>
                   <p className="muted">
                     Color shows how tightly clustered actual pitches were around each intended target —
-                    green = tight grouping, red = scattered. Tap a target zone to see exactly where those
-                    pitches actually landed.
+                    green = tight grouping, red = scattered. Tap a target zone to see where those pitches
+                    actually landed; tap it again to go back to the overall heat map.
                   </p>
                   <div className="chips">
                     <button className={`chip ${groupingPitchType === 'all' ? 'on' : ''}`} onClick={() => { setGroupingPitchType('all'); setDrillDownZone(null) }}>
@@ -130,28 +130,18 @@ export default function PitcherReport() {
                       </button>
                     ))}
                   </div>
+                  {drillDown && (
+                    <p className="muted" style={{ marginBottom: 4 }}>
+                      Showing landing spots for <strong style={{ color: 'var(--text)' }}>{drillDown.count}</strong> pitches
+                      aimed at <strong style={{ color: 'var(--text)' }}>{zoneLabel(drillDown.intended)}</strong>
+                    </p>
+                  )}
                   <ZoneGrid
                     grouping={grouping}
                     granular
                     selected={drillDownZone}
                     onSelect={(z) => setDrillDownZone(drillDownZone === z ? null : z)}
                   />
-                  {drillDown && (
-                    <div className="card stack">
-                      <strong>Target: {zoneLabel(drillDown.intended)} · {drillDown.count} pitches</strong>
-                      <p className="muted" style={{ margin: 0 }}>Where they actually landed:</p>
-                      <div className="list">
-                        {[...drillDown.actualBreakdown.entries()]
-                          .sort((a, b) => b[1] - a[1])
-                          .map(([zone, count]) => (
-                            <div key={String(zone)} className="list-item">
-                              <span className="grow">{zoneLabel(zone)}</span>
-                              <span className="pill">{count}</span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
             </>
