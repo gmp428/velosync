@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 const pr = process.env.VELOSYNC_PR?.trim() || ''
 const base = pr ? `/velosync/pr/${pr}/` : '/velosync/'
-const appName = pr ? 'VeloSync PR' : 'VeloSync'
+const appName = pr ? `VeloSync PR${pr}` : 'VeloSync'
 
 export default defineConfig({
   base,
@@ -14,7 +14,7 @@ export default defineConfig({
       name: 'html-pr-chrome',
       transformIndexHtml(html) {
         if (!pr) return html
-        return html.replace('<title>VeloSync</title>', '<title>VeloSync PR</title>')
+        return html.replace('<title>VeloSync</title>', `<title>${appName}</title>`)
       },
     },
     VitePWA({
