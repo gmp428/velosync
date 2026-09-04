@@ -180,6 +180,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   grid-template-rows: 26px 40px 40px 40px 26px;
   max-width: 280px;
 }
+.zone-grid-granular .zone-cell { font-size: 0.75rem; }
 .zone-cell {
   border-radius: 8px;
   padding: 0;

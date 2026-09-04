@@ -853,7 +853,7 @@ export default function LiveGame() {
           <>
           <h3>2. Location {selZone === null && <span className="muted" style={{ textTransform: 'none' }}>— tap where the pitch went</span>}</h3>
           <div className="zone-wrap">
-            <ZoneGrid selected={selZone} onSelect={setSelZone} heat={heat} />
+            <ZoneGrid selected={selZone} onSelect={setSelZone} heat={heat} granular={settings?.capture.granularZones} />
             {selZone !== null && (
               <div className="result-overlay">
                 <div className="row spread" style={{ marginBottom: 6 }}>
