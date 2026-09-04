@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, fullName, pitcherArsenal } from '../db'
+import { db, displayName, fullName, getSettings, pitcherArsenal } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
 import {
-  aggregate, byPitchType, byZoneBattle, filterByWindow, pct, successRate,
+  aggregate, byPitchType, byZoneBattle, commandAgg, commandRate, filterByWindow, pct, successRate,
   WINDOW_LABELS, type TimeWindow,
 } from '../lib/stats'
 
@@ -20,15 +20,18 @@ export default function PitcherReport() {
   const allGames = useLiveQuery(() => db.games.toArray(), [])
   const allBatters = useLiveQuery(() => db.batters.toArray(), [])
   const pitchTypes = useLiveQuery(() => db.pitchTypes.toArray(), [])
+  const settings = useLiveQuery(() => getSettings(), [])
 
   const [win, setWin] = useState<TimeWindow>('all')
 
-  if (!pitcher || !pitches || !allGames || !allBatters || !pitchTypes) return null
+  if (!pitcher || !pitches || !allGames || !allBatters || !pitchTypes || !settings) return null
 
   const viewPitches = filterByWindow(pitches, allGames, win)
   const overall = aggregate(viewPitches)
   const typeAggs = byPitchType(viewPitches)
   const heat = byZoneBattle(viewPitches)
+  const resolution = settings.capture.granularZones ? 'granular' : 'coarse'
+  const command = commandAgg(viewPitches, settings.commandMatchMode, resolution)
 
   // Per-batter results for this pitcher
   const byBatter = new Map<string, typeof overall>()
@@ -67,7 +70,31 @@ export default function PitcherReport() {
           </div>
 
           <h2>Locations</h2>
-          <ZoneGrid heat={heat} />
+          <ZoneGrid heat={heat} granular={settings.capture.granularZones} />
+
+          {command.total > 0 && (
+            <>
+              <h2>Command</h2>
+              <p className="muted">
+                {command.total} pitches with an intended target logged · mode: {settings.commandMatchMode === 'tight' ? 'tight (exact zone)' : 'loose (same or adjacent zone)'}
+                {' '}— change in Settings.
+              </p>
+              <div className="card row spread">
+                <span className="good">{pct(commandRate(command) ?? 0)} hit target</span>
+                {resolution === 'granular' && (
+                  <>
+                    <span className={command.missHigh > 0 ? 'bad' : 'muted'}>{command.missHigh} missed high</span>
+                    <span className={command.missLow > 0 ? 'bad' : 'muted'}>{command.missLow} missed low</span>
+                    <span className={command.missArmSide > 0 ? 'bad' : 'muted'}>{command.missArmSide} missed arm-side</span>
+                    <span className={command.missGloveSide > 0 ? 'bad' : 'muted'}>{command.missGloveSide} missed glove-side</span>
+                  </>
+                )}
+              </div>
+              {resolution === 'coarse' && (
+                <p className="muted">Turn on "Granular foul zones" in Settings for a high/low/arm-side/glove-side miss-direction breakdown.</p>
+              )}
+            </>
+          )}
 
           <h2>Pitch mix</h2>
           <table>

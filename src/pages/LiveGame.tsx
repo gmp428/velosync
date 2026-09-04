@@ -155,6 +155,7 @@ export default function LiveGame() {
   )
 
   const [selType, setSelType] = useState<string | null>(null)
+  const [selIntendedZone, setSelIntendedZone] = useState<Zone | null>(null)
   const [selZone, setSelZone] = useState<Zone | null>(null)
   const [showInPlay, setShowInPlay] = useState(false)
   // Which history pool the in-game stats draw from
@@ -188,6 +189,7 @@ export default function LiveGame() {
   // If a pitcher change removes the selected pitch type from the arsenal, clear it
   useEffect(() => {
     setSelType(null)
+    setSelIntendedZone(null)
   }, [game?.currentPitcherId])
 
   // Fresh batter: reset the stat scope and close the switch-batter picker
@@ -426,6 +428,7 @@ export default function LiveGame() {
       ...pendingSync(),
     })
     setSelType(null)
+    setSelIntendedZone(null)
     setSelZone(null)
     setShowInPlay(false)
   }
@@ -434,6 +437,7 @@ export default function LiveGame() {
 
   const commit = async (result: PitchResult, inPlay?: InPlayOutcome) => {
     if (!openAtBat || selType === null || selZone === null) return
+    if (settings?.capture.intendedLocation && selIntendedZone === null) return
     let outcome: AtBatOutcome | undefined
     if (result === 'ball' && balls + 1 >= 4) outcome = 'walk'
     else if ((result === 'called_strike' || result === 'swinging_strike') && strikes + 1 >= 3) outcome = 'strikeout'
@@ -452,6 +456,7 @@ export default function LiveGame() {
         strikes,
         pitchTypeId: selType,
         zone: selZone,
+        intendedZone: settings?.capture.intendedLocation ? (selIntendedZone ?? undefined) : undefined,
         result,
         inPlay,
         inning: curInning,
@@ -506,6 +511,7 @@ export default function LiveGame() {
       }
     }
     setSelType(null)
+    setSelIntendedZone(null)
     setSelZone(null)
     setShowInPlay(false)
   }
@@ -840,13 +846,28 @@ export default function LiveGame() {
           ) : (
             <div className="row spread selected-pitch">
               <span><span className="muted">Pitch:</span> <strong>{pitchTypes.find((t) => t.id === selType)?.name}</strong></span>
-              <button className="small" onClick={() => { setSelType(null); setSelZone(null); setShowInPlay(false) }}>Change pitch</button>
+              <button className="small" onClick={() => { setSelType(null); setSelIntendedZone(null); setSelZone(null); setShowInPlay(false) }}>Change pitch</button>
             </div>
           )}
 
-          {selType !== null && (
+          {selType !== null && settings?.capture.intendedLocation && selIntendedZone === null && (
+            <>
+              <h3>2. Intended target <span className="muted" style={{ textTransform: 'none' }}>— tap where the catcher/pitcher were aiming</span></h3>
+              <div className="zone-wrap">
+                <ZoneGrid selected={selIntendedZone} onSelect={setSelIntendedZone} granular={settings?.capture.granularZones} />
+              </div>
+            </>
+          )}
+
+          {selType !== null && (!settings?.capture.intendedLocation || selIntendedZone !== null) && (
           <>
-          <h3>2. Location {selZone === null && <span className="muted" style={{ textTransform: 'none' }}>— tap where the pitch went</span>}</h3>
+          <h3>{settings?.capture.intendedLocation ? '3' : '2'}. Location {selZone === null && <span className="muted" style={{ textTransform: 'none' }}>— tap where the pitch went</span>}</h3>
+          {settings?.capture.intendedLocation && selIntendedZone !== null && (
+            <div className="row spread selected-pitch" style={{ marginBottom: 8 }}>
+              <span><span className="muted">Target:</span> <strong>{zoneLabel(selIntendedZone)}</strong></span>
+              <button className="small" onClick={() => setSelIntendedZone(null)}>✎ Change target</button>
+            </div>
+          )}
           <div className="zone-wrap">
             <ZoneGrid selected={selZone} onSelect={setSelZone} heat={heat} granular={settings?.capture.granularZones} />
             {selZone !== null && (

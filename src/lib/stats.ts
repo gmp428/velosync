@@ -1,4 +1,5 @@
 import type { Game, Pitch, Zone } from '../db'
+import { normalizeZone } from '../db'
 
 // A pitch is a "success" for us when it got a called strike, a swing-and-miss,
 // or was put in play for an out.
@@ -224,7 +225,112 @@ export function countKey(p: Pitch): string {
   return `${p.balls}-${p.strikes}`
 }
 
-// Pitches grouped by the count they were thrown on, ordered balls-then-strikes.
+// ---------- Command / intended-vs-actual location ----------
+// Only meaningful for pitches logged with the "Intended location" capture
+// flag on (Pitch.intendedZone set). Every other pitch is simply excluded
+// from these stats — there's nothing to compare.
+
+// Grid coordinates [col, row] for every zone, matching the ZoneGrid layouts
+// exactly (see components/ZoneGrid.tsx CELLS_COARSE / CELLS_GRANULAR).
+// Adjacency for "loose" command matching is derived generically from these
+// (any zone one step away horizontally/vertically, no diagonals) rather than
+// hand-listing every zone's neighbors separately — less error-prone, and
+// automatically stays correct if either layout ever changes.
+const GRANULAR_COORDS: Record<string, [number, number]> = {
+  'og-up-left-corner': [1, 1], 'og-up-left-third': [2, 1], 'og-up-middle-third': [3, 1], 'og-up-right-third': [4, 1], 'og-up-right-corner': [5, 1],
+  'og-left-up-third': [1, 2], 1: [2, 2], 2: [3, 2], 3: [4, 2], 'og-right-up-third': [5, 2],
+  'og-left-middle-third': [1, 3], 4: [2, 3], 5: [3, 3], 6: [4, 3], 'og-right-middle-third': [5, 3],
+  'og-left-down-third': [1, 4], 7: [2, 4], 8: [3, 4], 9: [4, 4], 'og-right-down-third': [5, 4],
+  'og-down-left-corner': [1, 5], 'og-down-left-third': [2, 5], 'og-down-middle-third': [3, 5], 'og-down-right-third': [4, 5], 'og-down-right-corner': [5, 5],
+}
+
+// Coarse layout has 4 spanning outer regions (each covering 3 grid cells), so
+// plain coordinate math doesn't apply cleanly — adjacency is hand-listed
+// instead (only 13 zones, small and easy to verify against the grid picture
+// in ZoneGrid.tsx: o-up spans above 1/2/3, o-left spans left of 1/4/7, etc).
+const COARSE_ADJACENCY: Record<string, string[]> = {
+  'o-up': [1, 2, 3] as unknown as string[],
+  'o-down': [7, 8, 9] as unknown as string[],
+  'o-left': [1, 4, 7] as unknown as string[],
+  'o-right': [3, 6, 9] as unknown as string[],
+  1: ['o-up', 2, 4, 'o-left'] as unknown as string[],
+  2: ['o-up', 1, 3, 5] as unknown as string[],
+  3: ['o-up', 2, 6, 'o-right'] as unknown as string[],
+  4: ['o-left', 1, 5, 7] as unknown as string[],
+  5: [2, 4, 6, 8] as unknown as string[],
+  6: ['o-right', 3, 5, 9] as unknown as string[],
+  7: ['o-left', 4, 8, 'o-down'] as unknown as string[],
+  8: [5, 7, 9, 'o-down'] as unknown as string[],
+  9: ['o-right', 6, 8, 'o-down'] as unknown as string[],
+}
+
+function granularAdjacent(a: Zone, b: Zone): boolean {
+  const ca = GRANULAR_COORDS[String(a)]
+  const cb = GRANULAR_COORDS[String(b)]
+  if (!ca || !cb) return false
+  return Math.abs(ca[0] - cb[0]) + Math.abs(ca[1] - cb[1]) === 1
+}
+
+// True when `actual` counts as hitting `intended` under the given mode.
+// `resolution` should match whichever grid the pitch was actually logged at
+// (coarse vs granular) — call normalizeZone() on both zones first if you need
+// to compare across a mixed-resolution dataset.
+export function commandHit(intended: Zone, actual: Zone, mode: 'tight' | 'loose', resolution: 'coarse' | 'granular'): boolean {
+  if (intended === actual) return true
+  if (mode === 'tight') return false
+  if (resolution === 'granular') return granularAdjacent(intended, actual)
+  const neighbors = COARSE_ADJACENCY[String(intended)] ?? []
+  return neighbors.some((z) => String(z) === String(actual))
+}
+
+export interface CommandAgg {
+  total: number       // pitches with intendedZone logged
+  hit: number         // counted as hitting the target under the given mode
+  missHigh: number
+  missLow: number
+  missArmSide: number  // toward o-right / right-third-ish cells (glove-side vs arm-side isn't handed-aware — see note below)
+  missGloveSide: number
+}
+
+// Command aggregate for a set of pitches, under the given match mode. Pitches
+// without an intendedZone are silently excluded (nothing to compare). Miss
+// direction is a simple row/col comparison (intended vs actual), NOT
+// batter/pitcher-handedness-aware — "arm side" here just means toward the
+// right of the grid (the catcher's view), same convention as everywhere else
+// in the app (zoneLabel, ZoneGrid). A handedness-aware left/right relabel can
+// be layered on later without changing this aggregation.
+export function commandAgg(pitches: Pitch[], mode: 'tight' | 'loose', resolution: 'coarse' | 'granular'): CommandAgg {
+  const a: CommandAgg = { total: 0, hit: 0, missHigh: 0, missLow: 0, missArmSide: 0, missGloveSide: 0 }
+  for (const p of pitches) {
+    if (p.intendedZone === undefined) continue
+    a.total++
+    const intended = normalizeZone(p.intendedZone, resolution)
+    const actual = normalizeZone(p.zone, resolution)
+    if (commandHit(intended, actual, mode, resolution)) {
+      a.hit++
+      continue
+    }
+    const ci = resolution === 'granular' ? GRANULAR_COORDS[String(intended)] : undefined
+    const ca = resolution === 'granular' ? GRANULAR_COORDS[String(actual)] : undefined
+    if (ci && ca) {
+      if (ca[1] < ci[1]) a.missHigh++
+      else if (ca[1] > ci[1]) a.missLow++
+      if (ca[0] > ci[0]) a.missArmSide++
+      else if (ca[0] < ci[0]) a.missGloveSide++
+    }
+    // Coarse-resolution miss-direction is intentionally left unbucketed here
+    // (COARSE_ADJACENCY has no coordinate grid to diff) — total/hit counts
+    // are still fully correct at coarse resolution, just without a
+    // high/low/arm/glove breakdown. Granular is where that detail lives.
+  }
+  return a
+}
+
+export function commandRate(a: CommandAgg): number | null {
+  return a.total === 0 ? null : a.hit / a.total
+}
+
+
 export function byCount(pitches: Pitch[]): Array<{ key: string; pitches: Pitch[] }> {
   const m = new Map<string, Pitch[]>()
   for (const p of pitches) {

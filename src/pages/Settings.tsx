@@ -15,7 +15,7 @@ const CAPTURE_LABELS: Array<{ key: keyof CaptureFlags; label: string; help: stri
   { key: 'strikeType', label: 'Strike detail', help: 'Distinguish called vs swinging strikes.' },
   { key: 'inPlayDetail', label: 'Hit detail', help: 'Log single / double / triple / HR / error (vs just Out / Hit).' },
   { key: 'granularZones', label: 'Granular foul zones', help: 'Split each out-of-zone strip into thirds, plus the 4 corners (25 zones total instead of 13).' },
-  { key: 'intendedLocation', label: 'Intended location', help: 'Record the target spot vs where it finished.' },
+  { key: 'intendedLocation', label: 'Intended location', help: 'Adds one extra tap per pitch: mark where the catcher/pitcher were aiming before logging where it actually went. Unlocks command % and miss-tendency reports.' },
   { key: 'fieldPosition', label: 'Ball-in-play location', help: 'Field diamond — where the ball was hit.' },
   { key: 'battedBallType', label: 'Batted-ball type', help: 'Ground/fly/line, bunt, hard/soft hit, fielder’s choice.' },
 ]
@@ -131,6 +131,30 @@ export default function Settings() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {settings.capture.intendedLocation && (
+        <div className="card stack" style={{ marginTop: 8 }}>
+          <strong>Command % strictness</strong>
+          <p className="muted" style={{ margin: 0 }}>
+            How close a pitch has to land to its intended target to count as "hit the target" in reports.
+            Doesn't affect what's logged — safe to change any time.
+          </p>
+          <div className="chips">
+            <button
+              className={`chip ${settings.commandMatchMode === 'tight' ? 'on' : ''}`}
+              onClick={() => saveSettings({ commandMatchMode: 'tight' })}
+            >
+              Tight — exact zone only
+            </button>
+            <button
+              className={`chip ${settings.commandMatchMode === 'loose' ? 'on' : ''}`}
+              onClick={() => saveSettings({ commandMatchMode: 'loose' })}
+            >
+              Loose — same or adjacent zone
+            </button>
+          </div>
         </div>
       )}
 
