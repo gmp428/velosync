@@ -4,7 +4,14 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
-## [0.10.2] — 2026-09-03
+## [0.10.3] — 2026-09-03
+
+### Fixed
+- "Change batter" no longer rearranges the batting order. It now purely
+  reassigns who the currently open at-bat belongs to — the batting order
+  itself (set via the Batting order panel) is never touched. Fixes a real
+  reported bug: reorder the lineup, then correct the current batter, and the
+  reorder would get silently scrambled/reverted.
 
 ### Fixed
 - Rapid, back-to-back edits in the Batting order panel (drag one row, then immediately drag or remove another) could silently overwrite each other, discarding all but the last edit. The panel now edits against local state that updates immediately, so each edit correctly builds on the one before it regardless of how fast they happen.
