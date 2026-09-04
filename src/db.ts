@@ -276,8 +276,6 @@ export type LoggingPreset = 'quick' | 'standard' | 'detailed' | 'custom'
 export interface CaptureFlags {
   strikeType: boolean       // called vs swinging strike (off → single "Strike")
   inPlayDetail: boolean     // full hit types (off → just Out / Hit)
-  hbp: boolean              // hit-by-pitch as a pitch outcome
-  inning: boolean           // tag pitches/at-bats by inning + inning control
   granularZones: boolean    // split each out-of-zone strip into thirds + corners
   // Future capture steps — flags exist so the UI can gate them as they ship.
   intendedLocation: boolean
@@ -293,15 +291,15 @@ export interface AppSettings {
 }
 
 const CAPTURE_QUICK: CaptureFlags = {
-  strikeType: false, inPlayDetail: false, hbp: false, inning: false, granularZones: false,
+  strikeType: false, inPlayDetail: false, granularZones: false,
   intendedLocation: false, fieldPosition: false, battedBallType: false,
 }
 const CAPTURE_STANDARD: CaptureFlags = {
-  strikeType: true, inPlayDetail: true, hbp: true, inning: false, granularZones: false,
+  strikeType: true, inPlayDetail: true, granularZones: false,
   intendedLocation: false, fieldPosition: false, battedBallType: false,
 }
 const CAPTURE_DETAILED: CaptureFlags = {
-  strikeType: true, inPlayDetail: true, hbp: true, inning: true, granularZones: true,
+  strikeType: true, inPlayDetail: true, granularZones: true,
   intendedLocation: true, fieldPosition: true, battedBallType: true,
 }
 
@@ -313,7 +311,7 @@ export const CAPTURE_PRESETS: Record<'quick' | 'standard' | 'detailed', CaptureF
 
 // Capture flags that actually change logging today. The rest are shown in
 // Settings as "coming soon" so the framework is visible but honest.
-export const LIVE_CAPTURE_FLAGS: Array<keyof CaptureFlags> = ['strikeType', 'inPlayDetail', 'hbp', 'inning', 'granularZones']
+export const LIVE_CAPTURE_FLAGS: Array<keyof CaptureFlags> = ['strikeType', 'inPlayDetail', 'granularZones']
 
 export function defaultSettings(): AppSettings {
   return { id: 'app', preset: 'standard', capture: { ...CAPTURE_STANDARD }, updatedAt: now() }
