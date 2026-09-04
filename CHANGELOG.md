@@ -4,6 +4,30 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-09-03
+
+### Added
+- Granular foul zones: new opt-in Settings toggle ("Granular foul zones",
+  under Advanced) that splits each out-of-zone strip into thirds plus the 4
+  corners — a true 5x5 of 25 individually-tappable zones instead of 9 in-zone
+  + 4 merged outer strips. On by default in the Detailed preset; Quick/
+  Standard keep the original coarse 13-zone layout. Switching between
+  coarse and granular mid-season is safe — nothing is deleted or rewritten,
+  and reports correctly fold old + new data together at whichever
+  resolution is being viewed (coarse pitches default to the "middle third"
+  of their side when shown at granular resolution; granular pitches roll up
+  into their parent coarse zone when shown at coarse resolution).
+
+### Changed
+- HBP (hit-by-pitch) is no longer a togglable setting — it's a normal, common
+  pitch outcome, so the HBP button now always shows on the live-logging
+  screen regardless of preset, with no Settings entry at all.
+- Removed the "Inning tags" setting. Inning/half tracking was already fully
+  automatic regardless of this toggle (every pitch is tagged, the inning
+  auto-advances after 3 outs, half is locked per-game from home/away); the
+  flag only gated visibility of the manual Previous/Next inning override
+  buttons, which are now always shown.
+
 ## [0.10.3] — 2026-09-03
 
 ### Fixed
