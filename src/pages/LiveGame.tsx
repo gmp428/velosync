@@ -9,6 +9,7 @@ import ZoneGrid from '../components/ZoneGrid'
 import SuggestionPanel from '../components/SuggestionPanel'
 import LineupEditor from '../components/LineupEditor'
 import { battleAgg, battleRate, byZoneBattle, outcomeBreakdown, pct } from '../lib/stats'
+import { useHeaderExtra } from '../lib/headerExtra'
 
 type Half = 'top' | 'bottom'
 
@@ -155,6 +156,7 @@ export default function LiveGame() {
   )
 
   const [selType, setSelType] = useState<string | null>(null)
+  const [selIntendedZone, setSelIntendedZone] = useState<Zone | null>(null)
   const [selZone, setSelZone] = useState<Zone | null>(null)
   const [showInPlay, setShowInPlay] = useState(false)
   // Which history pool the in-game stats draw from
@@ -168,6 +170,9 @@ export default function LiveGame() {
   const [showSubstitutePanel, setShowSubstitutePanel] = useState(false)
   // Showing the drag-to-reorder lineup panel
   const [showLineup, setShowLineup] = useState(false)
+  // Consolidated game-menu dropdown (Batting order / Wrong batter? / Substitute / Change pitcher)
+  const [showGameMenu, setShowGameMenu] = useState(false)
+  const [showChangePitcher, setShowChangePitcher] = useState(false)
   // Transient "Ghost Batter — Out N" flash shown for each ghost-out slot the
   // order auto-advances past, so a skipped turn is visible instead of
   // silently jumping to the next real batter. null = not showing.
@@ -188,6 +193,7 @@ export default function LiveGame() {
   // If a pitcher change removes the selected pitch type from the arsenal, clear it
   useEffect(() => {
     setSelType(null)
+    setSelIntendedZone(null)
   }, [game?.currentPitcherId])
 
   // Fresh batter: reset the stat scope and close the switch-batter picker
@@ -251,6 +257,11 @@ export default function LiveGame() {
       .then((r) => handleAdvanceResult(r, lu, game.currentPitcherId!))
       .finally(() => { bootingRef.current = false })
   }, [game?.status, atBatCount, game?.lineup, game?.currentPitcherId, gameId, roster])
+
+  useHeaderExtra(
+    opponent ? `vs ${opponent.name}` : null,
+    game ? <button className="small danger" onClick={() => endGame()}>End game</button> : null,
+  )
 
   if (!game || !opponent || !roster || !pitchers || !pitchTypes) return null
 
@@ -426,6 +437,7 @@ export default function LiveGame() {
       ...pendingSync(),
     })
     setSelType(null)
+    setSelIntendedZone(null)
     setSelZone(null)
     setShowInPlay(false)
   }
@@ -434,6 +446,7 @@ export default function LiveGame() {
 
   const commit = async (result: PitchResult, inPlay?: InPlayOutcome) => {
     if (!openAtBat || selType === null || selZone === null) return
+    if (settings?.capture.intendedLocation && selIntendedZone === null) return
     let outcome: AtBatOutcome | undefined
     if (result === 'ball' && balls + 1 >= 4) outcome = 'walk'
     else if ((result === 'called_strike' || result === 'swinging_strike') && strikes + 1 >= 3) outcome = 'strikeout'
@@ -452,6 +465,7 @@ export default function LiveGame() {
         strikes,
         pitchTypeId: selType,
         zone: selZone,
+        intendedZone: settings?.capture.intendedLocation ? (selIntendedZone ?? undefined) : undefined,
         result,
         inPlay,
         inning: curInning,
@@ -506,6 +520,7 @@ export default function LiveGame() {
       }
     }
     setSelType(null)
+    setSelIntendedZone(null)
     setSelZone(null)
     setShowInPlay(false)
   }
@@ -573,42 +588,22 @@ export default function LiveGame() {
           </div>
         </div>
       )}
-      <div className="row spread">
-        <h1 style={{ margin: '8px 0' }}>vs {opponent.name}</h1>
-        <span className="muted">{gamePitchCount ?? 0} pitches</span>
-      </div>
-
-      <div className="row">
-        <label style={{ margin: 0 }}>Pitching:</label>
-        <select
-          style={{ width: 'auto', flex: 1 }}
-          value={game.currentPitcherId ?? ''}
-          onChange={(e) => db.games.update(gameId, { currentPitcherId: e.target.value, updatedAt: now(), ...pendingSync() })}
-        >
-          {pitchers.map((p) => (
-            <option key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ''}{displayName(p)}</option>
-          ))}
-        </select>
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
         <button className="small" onClick={undo} disabled={!gamePitchCount && !openAtBat}>↩ Undo</button>
-      </div>
-
-      <div className="row" style={{ marginTop: 8 }}>
-        <button className="small" onClick={() => setShowLineup((v) => !v)}>
-          {showLineup ? 'Close lineup' : '☰ Batting order'}
-        </button>
-        <button className="small danger" onClick={endGame}>End game</button>
       </div>
 
       <div className="row" style={{ marginTop: 8 }}>
           {!game.homeAway && (
             <button className="chip small-chip" onClick={toggleHalf} title="Switch top / bottom">{halfLabel}</button>
           )}
-          <span className="count-display" style={{ fontSize: '1.1rem' }}>Inning {curInning}</span>
       </div>
 
       {showLineup && (
         <div className="card stack">
-          <strong>Batting order — drag ≡ to reorder</strong>
+          <div className="row spread">
+            <strong>Batting order — drag ≡ to reorder</strong>
+            <button className="small" onClick={() => setShowLineup(false)}>Close</button>
+          </div>
           <p className="muted" style={{ margin: 0 }}>
             ✕ benches a batter for today (unchecks them on the roster too).
             Add a Ghost Batter (Auto Out) slot for a vacancy with no sub — it auto-logs a scoreless
@@ -634,7 +629,12 @@ export default function LiveGame() {
 
       {!openAtBat && (
         <>
-          <h2>Who’s up to bat?</h2>
+          <div className="row spread">
+            <h2 style={{ margin: '8px 0' }}>Who's up to bat?</h2>
+            <button className="small" onClick={() => setShowLineup((v) => !v)}>
+              {showLineup ? 'Close lineup' : '☰ Batting order'}
+            </button>
+          </div>
           {roster.length === 0 && (
             <p className="empty">No batters on {opponent.name}’s roster yet — add them from the team page.</p>
           )}
@@ -661,13 +661,13 @@ export default function LiveGame() {
         const heat = heatPitches.length > 0 ? byZoneBattle(heatPitches) : undefined
         return (
         <>
-          <div className="card">
+          <div className="card" style={{ position: 'relative' }}>
             <div className="row spread">
               <div>
                 <div style={{ fontWeight: 700 }}>{batter.number ? `#${batter.number} ` : ''}{displayName(batter)}</div>
-                <div className="muted">bats {batter.bats} · vs {displayName(currentPitcher)}</div>
+                <div className="muted">bats {batter.bats} · vs {currentPitcher ? `${currentPitcher.number ? `#${currentPitcher.number} ` : ''}${displayName(currentPitcher)}` : '—'} · P: {gamePitchCount ?? 0}</div>
               </div>
-              <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+              <div className="row" style={{ gap: 10, alignItems: 'center', marginLeft: 'auto' }}>
                 <span
                   className="inning-indicator"
                   title={`${halfLabel === 'Top' ? 'Top' : 'Bottom'} of inning ${curInning}`}
@@ -684,19 +684,57 @@ export default function LiveGame() {
                 <div className="count-display">{balls}-{strikes}</div>
               </div>
             </div>
+            <div style={{ position: 'absolute', right: 8, bottom: 8 }}>
+              <button className="small" onClick={() => setShowGameMenu((v) => !v)} title="Game menu" aria-label="Game menu">⚙</button>
+              {showGameMenu && (
+                <div className="game-menu-dropdown" style={{ top: 'auto', bottom: '100%', marginTop: 0, marginBottom: 4 }}>
+                  <button className="small" onClick={() => { setShowLineup((v) => !v); setShowGameMenu(false) }}>
+                    ☰ Batting order
+                  </button>
+                  <button className="small" onClick={() => { setChangingBatter((v) => !v); setShowGameMenu(false) }}>
+                    ↔ Wrong batter?
+                  </button>
+                  <button
+                    className="small"
+                    onClick={() => {
+                      setShowSubstitutePanel((v) => !v)
+                      setSubstitutingFor(batter.id)
+                      setShowGameMenu(false)
+                    }}
+                    >
+                    ⇄ Substitute
+                  </button>
+                  <button className="small" onClick={() => { setShowChangePitcher((v) => !v); setShowGameMenu(false) }}>
+                    ⚾ Change pitcher
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="row" style={{ marginTop: 8 }}>
-              <button className="small" onClick={() => setChangingBatter((v) => !v)}>
-                {changingBatter ? 'Cancel' : '↔ Wrong batter?'}
-              </button>
-              <button
-                className="small"
-                onClick={() => {
-                  setShowSubstitutePanel((v) => !v)
-                  setSubstitutingFor(batter.id)
-                }}
-              >
-                {showSubstitutePanel ? 'Cancel' : '⇄ Substitute'}
-              </button>
+              {changingBatter && (
+                <button className="small" onClick={() => setChangingBatter(false)}>Cancel wrong-batter</button>
+              )}
+              {showSubstitutePanel && (
+                <button className="small" onClick={() => setShowSubstitutePanel(false)}>Cancel substitute</button>
+              )}
+              {showChangePitcher && (
+                <div className="row" style={{ alignItems: 'center', gap: 8 }}>
+                  <label style={{ margin: 0 }}>Pitching:</label>
+                  <select
+                    style={{ width: 'auto', flex: 1 }}
+                    value={game.currentPitcherId ?? ''}
+                    onChange={(e) => {
+                      db.games.update(gameId, { currentPitcherId: e.target.value, updatedAt: now(), ...pendingSync() })
+                      setShowChangePitcher(false)
+                    }}
+                  >
+                    {pitchers.map((p) => (
+                      <option key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ''}{displayName(p)}</option>
+                    ))}
+                  </select>
+                  <button className="small" onClick={() => setShowChangePitcher(false)}>Cancel</button>
+                </div>
+              )}
               {history.length > 0 && (
                 <>
                   <button
@@ -840,13 +878,28 @@ export default function LiveGame() {
           ) : (
             <div className="row spread selected-pitch">
               <span><span className="muted">Pitch:</span> <strong>{pitchTypes.find((t) => t.id === selType)?.name}</strong></span>
-              <button className="small" onClick={() => { setSelType(null); setSelZone(null); setShowInPlay(false) }}>Change pitch</button>
+              <button className="small" onClick={() => { setSelType(null); setSelIntendedZone(null); setSelZone(null); setShowInPlay(false) }}>Change pitch</button>
             </div>
           )}
 
-          {selType !== null && (
+          {selType !== null && settings?.capture.intendedLocation && selIntendedZone === null && (
+            <>
+              <h3>2. Intended target <span className="muted" style={{ textTransform: 'none' }}>— tap where the catcher/pitcher were aiming</span></h3>
+              <div className="zone-wrap">
+                <ZoneGrid selected={selIntendedZone} onSelect={setSelIntendedZone} heat={heat} granular={settings?.capture.granularZones} />
+              </div>
+            </>
+          )}
+
+          {selType !== null && (!settings?.capture.intendedLocation || selIntendedZone !== null) && (
           <>
-          <h3>2. Location {selZone === null && <span className="muted" style={{ textTransform: 'none' }}>— tap where the pitch went</span>}</h3>
+          <h3>{settings?.capture.intendedLocation ? '3' : '2'}. Location {selZone === null && <span className="muted" style={{ textTransform: 'none' }}>— tap where the pitch went</span>}</h3>
+          {settings?.capture.intendedLocation && selIntendedZone !== null && (
+            <div className="row spread selected-pitch" style={{ marginBottom: 8 }}>
+              <span><span className="muted">Target:</span> <strong>{zoneLabel(selIntendedZone)}</strong></span>
+              <button className="small" onClick={() => setSelIntendedZone(null)}>✎ Change target</button>
+            </div>
+          )}
           <div className="zone-wrap">
             <ZoneGrid selected={selZone} onSelect={setSelZone} heat={heat} granular={settings?.capture.granularZones} />
             {selZone !== null && (
@@ -889,7 +942,7 @@ export default function LiveGame() {
           </div>
           {heat && (
             <p className="muted" style={{ textAlign: 'center', margin: '0 0 8px' }}>
-              Green = our pitch won · red = they hit it · number = pitches there
+              Blue = our pitch won · vermillion = they hit it · number = pitches there
             </p>
           )}
           </>

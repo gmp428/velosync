@@ -40,8 +40,8 @@ a { color: var(--accent); text-decoration: none; }
 
 .topbar {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 2px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
   margin-bottom: 10px;
@@ -49,6 +49,18 @@ a { color: var(--accent); text-decoration: none; }
   top: 0;
   background: var(--bg);
   z-index: 10;
+}
+.topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.topbar-subheader {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding-left: 2px;
 }
 .topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .topbar .brand img { height: 40px; width: auto; display: block; }
@@ -170,19 +182,19 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 .zone-grid {
   display: grid;
   grid-template-columns: 44px 1fr 1fr 1fr 44px;
-  grid-template-rows: 44px 56px 56px 56px 44px;
-  gap: 4px;
+  grid-template-rows: 48px 88px 88px 88px 48px;
+  gap: 0;
   max-width: 360px;
   margin: 8px auto;
 }
 .zone-grid-compact {
   grid-template-columns: 26px 1fr 1fr 1fr 26px;
-  grid-template-rows: 26px 40px 40px 40px 26px;
+  grid-template-rows: 30px 62px 62px 62px 30px;
   max-width: 280px;
 }
 .zone-grid-granular .zone-cell { font-size: 0.75rem; }
 .zone-cell {
-  border-radius: 8px;
+  border-radius: 0;
   padding: 0;
   min-height: 0;
   font-size: 0.9rem;
@@ -192,6 +204,44 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 .zone-out { background: #eef2f8; border: 1px dashed var(--border); color: var(--muted); }
 .zone-selected { outline: 3px solid var(--accent); outline-offset: -1px; font-weight: 700; }
 .zone-cell:disabled { opacity: 1; }
+
+.game-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel, #fff);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 4px 14px rgba(13, 21, 38, 0.18);
+  min-width: 150px;
+}
+.game-menu-dropdown button { width: 100%; text-align: left; }
+
+/* Strike-zone outline + internal dividing lines, overlaid on top of the 3x3
+   in-zone cells regardless of their fill color/number — subtle (not pure
+   black) so it doesn't compete with heat-map colors, but always visible so
+   the strike zone stays distinguishable from the foul zone even when the
+   grid is busy. Pure visual overlay: no pointer-events, sits in the same
+   grid cell span as the 3x3 core so it lines up automatically in both the
+   coarse and granular layouts. */
+.zone-strike-outline {
+  grid-column: 2 / 5;
+  grid-row: 2 / 5;
+  pointer-events: none;
+  border: 4px solid rgba(13, 21, 38, 0.55);
+  border-radius: 0;
+  background-image:
+    linear-gradient(to right, transparent calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% + 2px), transparent calc(33.333% + 2px)),
+    linear-gradient(to right, transparent calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% + 2px), transparent calc(66.666% + 2px)),
+    linear-gradient(to bottom, transparent calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% + 2px), transparent calc(33.333% + 2px)),
+    linear-gradient(to bottom, transparent calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% + 2px), transparent calc(66.666% + 2px));
+}
 
 /* Live game */
 .count-display { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.05em; }
