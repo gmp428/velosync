@@ -665,7 +665,7 @@ export default function LiveGame() {
             <div className="row spread">
               <div>
                 <div style={{ fontWeight: 700 }}>{batter.number ? `#${batter.number} ` : ''}{displayName(batter)}</div>
-                <div className="muted">bats {batter.bats} · vs {currentPitcher ? `${currentPitcher.number ? `#${currentPitcher.number} ` : ''}${displayName(currentPitcher)}` : '—'} · {gamePitchCount ?? 0} pitches</div>
+                <div className="muted">bats {batter.bats} · vs {currentPitcher ? `${currentPitcher.number ? `#${currentPitcher.number} ` : ''}${displayName(currentPitcher)}` : '—'} · P: {gamePitchCount ?? 0}</div>
               </div>
               <div className="row" style={{ gap: 10, alignItems: 'center', position: 'relative' }}>
                 <span
