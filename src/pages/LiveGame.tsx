@@ -169,6 +169,8 @@ export default function LiveGame() {
   const [showSubstitutePanel, setShowSubstitutePanel] = useState(false)
   // Showing the drag-to-reorder lineup panel
   const [showLineup, setShowLineup] = useState(false)
+  // Consolidated game-menu dropdown (Batting order / Wrong batter? / Substitute)
+  const [showGameMenu, setShowGameMenu] = useState(false)
   // Transient "Ghost Batter — Out N" flash shown for each ghost-out slot the
   // order auto-advances past, so a skipped turn is visible instead of
   // silently jumping to the next real batter. null = not showing.
@@ -580,7 +582,10 @@ export default function LiveGame() {
         </div>
       )}
       <div className="row spread">
-        <h1 style={{ margin: '8px 0' }}>vs {opponent.name}</h1>
+        <h1 style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button className="small danger" onClick={endGame} title="End game" aria-label="End game">✕</button>
+          vs {opponent.name}
+        </h1>
         <span className="muted">{gamePitchCount ?? 0} pitches</span>
       </div>
 
@@ -599,13 +604,6 @@ export default function LiveGame() {
       </div>
 
       <div className="row" style={{ marginTop: 8 }}>
-        <button className="small" onClick={() => setShowLineup((v) => !v)}>
-          {showLineup ? 'Close lineup' : '☰ Batting order'}
-        </button>
-        <button className="small danger" onClick={endGame}>End game</button>
-      </div>
-
-      <div className="row" style={{ marginTop: 8 }}>
           {!game.homeAway && (
             <button className="chip small-chip" onClick={toggleHalf} title="Switch top / bottom">{halfLabel}</button>
           )}
@@ -614,7 +612,10 @@ export default function LiveGame() {
 
       {showLineup && (
         <div className="card stack">
-          <strong>Batting order — drag ≡ to reorder</strong>
+          <div className="row spread">
+            <strong>Batting order — drag ≡ to reorder</strong>
+            <button className="small" onClick={() => setShowLineup(false)}>Close</button>
+          </div>
           <p className="muted" style={{ margin: 0 }}>
             ✕ benches a batter for today (unchecks them on the roster too).
             Add a Ghost Batter (Auto Out) slot for a vacancy with no sub — it auto-logs a scoreless
@@ -640,7 +641,12 @@ export default function LiveGame() {
 
       {!openAtBat && (
         <>
-          <h2>Who’s up to bat?</h2>
+          <div className="row spread">
+            <h2 style={{ margin: '8px 0' }}>Who's up to bat?</h2>
+            <button className="small" onClick={() => setShowLineup((v) => !v)}>
+              {showLineup ? 'Close lineup' : '☰ Batting order'}
+            </button>
+          </div>
           {roster.length === 0 && (
             <p className="empty">No batters on {opponent.name}’s roster yet — add them from the team page.</p>
           )}
@@ -673,7 +679,7 @@ export default function LiveGame() {
                 <div style={{ fontWeight: 700 }}>{batter.number ? `#${batter.number} ` : ''}{displayName(batter)}</div>
                 <div className="muted">bats {batter.bats} · vs {displayName(currentPitcher)}</div>
               </div>
-              <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+              <div className="row" style={{ gap: 10, alignItems: 'center', position: 'relative' }}>
                 <span
                   className="inning-indicator"
                   title={`${halfLabel === 'Top' ? 'Top' : 'Bottom'} of inning ${curInning}`}
@@ -688,21 +694,36 @@ export default function LiveGame() {
                   ))}
                 </span>
                 <div className="count-display">{balls}-{strikes}</div>
+                <button className="small" onClick={() => setShowGameMenu((v) => !v)} title="Game menu" aria-label="Game menu">⚙</button>
+                {showGameMenu && (
+                  <div className="game-menu-dropdown">
+                    <button className="small" onClick={() => { setShowLineup((v) => !v); setShowGameMenu(false) }}>
+                      ☰ Batting order
+                    </button>
+                    <button className="small" onClick={() => { setChangingBatter((v) => !v); setShowGameMenu(false) }}>
+                      ↔ Wrong batter?
+                    </button>
+                    <button
+                      className="small"
+                      onClick={() => {
+                        setShowSubstitutePanel((v) => !v)
+                        setSubstitutingFor(batter.id)
+                        setShowGameMenu(false)
+                      }}
+                    >
+                      ⇄ Substitute
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             <div className="row" style={{ marginTop: 8 }}>
-              <button className="small" onClick={() => setChangingBatter((v) => !v)}>
-                {changingBatter ? 'Cancel' : '↔ Wrong batter?'}
-              </button>
-              <button
-                className="small"
-                onClick={() => {
-                  setShowSubstitutePanel((v) => !v)
-                  setSubstitutingFor(batter.id)
-                }}
-              >
-                {showSubstitutePanel ? 'Cancel' : '⇄ Substitute'}
-              </button>
+              {changingBatter && (
+                <button className="small" onClick={() => setChangingBatter(false)}>Cancel wrong-batter</button>
+              )}
+              {showSubstitutePanel && (
+                <button className="small" onClick={() => setShowSubstitutePanel(false)}>Cancel substitute</button>
+              )}
               {history.length > 0 && (
                 <>
                   <button
