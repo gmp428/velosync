@@ -667,7 +667,7 @@ export default function LiveGame() {
                 <div style={{ fontWeight: 700 }}>{batter.number ? `#${batter.number} ` : ''}{displayName(batter)}</div>
                 <div className="muted">bats {batter.bats} · vs {currentPitcher ? `${currentPitcher.number ? `#${currentPitcher.number} ` : ''}${displayName(currentPitcher)}` : '—'} · P: {gamePitchCount ?? 0}</div>
               </div>
-              <div className="row" style={{ gap: 10, alignItems: 'center', position: 'relative' }}>
+              <div className="row" style={{ gap: 10, alignItems: 'center', position: 'relative', marginLeft: 'auto' }}>
                 <span
                   className="inning-indicator"
                   title={`${halfLabel === 'Top' ? 'Top' : 'Bottom'} of inning ${curInning}`}
