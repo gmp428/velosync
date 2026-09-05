@@ -170,14 +170,14 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 .zone-grid {
   display: grid;
   grid-template-columns: 44px 1fr 1fr 1fr 44px;
-  grid-template-rows: 60px 127px 127px 127px 60px;
+  grid-template-rows: 48px 88px 88px 88px 48px;
   gap: 0;
   max-width: 360px;
   margin: 8px auto;
 }
 .zone-grid-compact {
   grid-template-columns: 26px 1fr 1fr 1fr 26px;
-  grid-template-rows: 36px 106px 106px 106px 36px;
+  grid-template-rows: 30px 62px 62px 62px 30px;
   max-width: 280px;
 }
 .zone-grid-granular .zone-cell { font-size: 0.75rem; }
