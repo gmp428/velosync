@@ -171,7 +171,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   display: grid;
   grid-template-columns: 44px 1fr 1fr 1fr 44px;
   grid-template-rows: 44px 56px 56px 56px 44px;
-  gap: 4px;
+  gap: 0;
   max-width: 360px;
   margin: 8px auto;
 }
@@ -182,7 +182,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 }
 .zone-grid-granular .zone-cell { font-size: 0.75rem; }
 .zone-cell {
-  border-radius: 8px;
+  border-radius: 0;
   padding: 0;
   min-height: 0;
   font-size: 0.9rem;
@@ -204,13 +204,13 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   grid-column: 2 / 5;
   grid-row: 2 / 5;
   pointer-events: none;
-  border: 2px solid rgba(13, 21, 38, 0.45);
-  border-radius: 8px;
+  border: 4px solid rgba(13, 21, 38, 0.55);
+  border-radius: 0;
   background-image:
-    linear-gradient(to right, transparent calc(33.333% - 1px), rgba(13, 21, 38, 0.3) calc(33.333% - 1px), rgba(13, 21, 38, 0.3) calc(33.333% + 1px), transparent calc(33.333% + 1px)),
-    linear-gradient(to right, transparent calc(66.666% - 1px), rgba(13, 21, 38, 0.3) calc(66.666% - 1px), rgba(13, 21, 38, 0.3) calc(66.666% + 1px), transparent calc(66.666% + 1px)),
-    linear-gradient(to bottom, transparent calc(33.333% - 1px), rgba(13, 21, 38, 0.3) calc(33.333% - 1px), rgba(13, 21, 38, 0.3) calc(33.333% + 1px), transparent calc(33.333% + 1px)),
-    linear-gradient(to bottom, transparent calc(66.666% - 1px), rgba(13, 21, 38, 0.3) calc(66.666% - 1px), rgba(13, 21, 38, 0.3) calc(66.666% + 1px), transparent calc(66.666% + 1px));
+    linear-gradient(to right, transparent calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% + 2px), transparent calc(33.333% + 2px)),
+    linear-gradient(to right, transparent calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% + 2px), transparent calc(66.666% + 2px)),
+    linear-gradient(to bottom, transparent calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% + 2px), transparent calc(33.333% + 2px)),
+    linear-gradient(to bottom, transparent calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% + 2px), transparent calc(66.666% + 2px));
 }
 
 /* Live game */
