@@ -170,14 +170,14 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 .zone-grid {
   display: grid;
   grid-template-columns: 44px 1fr 1fr 1fr 44px;
-  grid-template-rows: 44px 56px 56px 56px 44px;
+  grid-template-rows: 60px 127px 127px 127px 60px;
   gap: 0;
   max-width: 360px;
   margin: 8px auto;
 }
 .zone-grid-compact {
   grid-template-columns: 26px 1fr 1fr 1fr 26px;
-  grid-template-rows: 26px 40px 40px 40px 26px;
+  grid-template-rows: 36px 106px 106px 106px 36px;
   max-width: 280px;
 }
 .zone-grid-granular .zone-cell { font-size: 0.75rem; }
@@ -192,6 +192,24 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 .zone-out { background: #eef2f8; border: 1px dashed var(--border); color: var(--muted); }
 .zone-selected { outline: 3px solid var(--accent); outline-offset: -1px; font-weight: 700; }
 .zone-cell:disabled { opacity: 1; }
+
+.game-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel, #fff);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 4px 14px rgba(13, 21, 38, 0.18);
+  min-width: 150px;
+}
+.game-menu-dropdown button { width: 100%; text-align: left; }
 
 /* Strike-zone outline + internal dividing lines, overlaid on top of the 3x3
    in-zone cells regardless of their fill color/number — subtle (not pure
