@@ -1,15 +1,16 @@
 import type { Zone } from '../db'
 import { normalizeZone } from '../db'
-import type { BattleAgg } from '../lib/stats'
-import { battleRate } from '../lib/stats'
+import type { BattleAgg, GroupingCell } from '../lib/stats'
+import { battleRate, groupingColor } from '../lib/stats'
 
 // Strike zone from the catcher's point of view: a 3x3 in-zone grid surrounded
 // by four out-of-zone strips (high / low / left / right).
 //
 // Tap to choose where a pitch went (when onSelect is given), and/or color the
-// regions by how the battle went there (when heat is given) — green = our
-// pitch won (strikes, fouls, outs), red = they hit it. Both can be active at
-// once: during a game the grid is a heat map AND the location picker.
+// regions by how the battle went there (when heat is given) — colorblind-safe
+// blue-to-vermillion scale: blue = our pitch won (strikes, fouls, outs),
+// vermillion = they hit it. Both can be active at once: during a game the
+// grid is a heat map AND the location picker.
 //
 // Two layouts, switched by `granular`:
 //  - coarse (default): each outer strip is one big cell (13 cells total)
@@ -66,20 +67,34 @@ const CELLS_GRANULAR: Array<{ zone: Zone; style: React.CSSProperties; label?: st
   { zone: 'og-down-right-corner', style: { gridColumn: '5', gridRow: '5' }, label: '↘' },
 ]
 
-function heatColor(rate: number): string {
-  // 0 = red (they hit it), 1 = green (we won the pitch)
-  const hue = Math.round(rate * 120)
-  return `hsl(${hue}, 55%, 30%)`
+// Colorblind-safe diverging scale (Okabe-Ito palette), used for BOTH heat
+// maps below. Deliberately avoids a green<->red axis — that's exactly the
+// pair confused by red-green colorblindness (the most common form). Blue
+// (good) to vermillion/orange (bad) instead, quantized into 5 distinct
+// bands rather than a smooth blend so adjacent values read as clearly
+// different colors, not a subtle gradient shift.
+const HEAT_BANDS: Array<{ min: number; bg: string; fg: string }> = [
+  { min: 0.8, bg: '#0072B2', fg: '#ffffff' }, // strong blue — best
+  { min: 0.6, bg: '#56B4E9', fg: '#0d1526' }, // sky blue
+  { min: 0.4, bg: '#F0E442', fg: '#0d1526' }, // yellow — neutral middle
+  { min: 0.2, bg: '#E69F00', fg: '#0d1526' }, // orange
+  { min: -1, bg: '#D55E00', fg: '#ffffff' },  // vermillion — worst
+]
+
+function heatColor(rate: number): { bg: string; fg: string } {
+  for (const band of HEAT_BANDS) if (rate >= band.min) return { bg: band.bg, fg: band.fg }
+  return HEAT_BANDS[HEAT_BANDS.length - 1]
 }
 
 export default function ZoneGrid(props: {
   selected?: Zone | null
   onSelect?: (z: Zone) => void
   heat?: Map<Zone, BattleAgg>
+  grouping?: Map<Zone, GroupingCell> // command grouping heat map (granular only, see stats.ts commandGrouping)
   compact?: boolean
   granular?: boolean
 }) {
-  const { selected, onSelect, heat, compact, granular } = props
+  const { selected, onSelect, heat, grouping, compact, granular } = props
   const CELLS = granular ? CELLS_GRANULAR : CELLS_COARSE
   const resolution = granular ? 'granular' : 'coarse'
   return (
@@ -87,8 +102,51 @@ export default function ZoneGrid(props: {
       {CELLS.map(({ zone, style, label }) => {
         const inZone = typeof zone === 'number'
         let bg: string | undefined
+        let fg: string | undefined
         let text = label ?? ''
-        if (heat) {
+        if (grouping) {
+          if (selected !== null && selected !== undefined) {
+            // Drill-down mode: the selected target zone keeps its original
+            // grouping color (frozen), every other zone shows a neutral
+            // background with the count of pitches (aimed at the selected
+            // target) that actually LANDED there. Tapping the selected zone
+            // again (handled by the caller toggling `selected` back to null)
+            // returns to the normal overall heat map.
+            if (zone === selected) {
+              const cell = grouping.get(zone)
+              if (cell) {
+                const c = groupingColor(cell.avgDistance)
+                bg = c.bg
+                fg = c.fg
+              }
+              // Show how many pitches actually LANDED on target, matching
+              // every other zone's meaning (a landing-spot count) — not the
+              // total aimed here, which double-counted alongside the
+              // other zones' landed-elsewhere counts.
+              text = cell ? String(cell.actualBreakdown.get(zone) ?? 0) : ''
+            } else {
+              const selectedCell = grouping.get(selected)
+              const landedCount = selectedCell?.actualBreakdown.get(zone) ?? 0
+              if (landedCount > 0) {
+                bg = '#475569' // neutral slate, distinct from the grouping scale
+                fg = '#ffffff'
+                text = String(landedCount)
+              } else {
+                text = ''
+              }
+            }
+          } else {
+            const cell = grouping.get(zone)
+            if (cell) {
+              const c = groupingColor(cell.avgDistance)
+              bg = c.bg
+              fg = c.fg
+              text = String(cell.count)
+            } else if (!onSelect) {
+              text = ''
+            }
+          }
+        } else if (heat) {
           // Normalize so a pitch logged at the OTHER resolution (e.g. from a
           // Standard-preset stretch, or before a coach switched settings)
           // still counts toward this cell instead of silently vanishing.
@@ -106,7 +164,14 @@ export default function ZoneGrid(props: {
           }
           if (agg && agg.total > 0) {
             const rate = battleRate(agg)
-            bg = rate === null ? '#64748b' : heatColor(rate)
+            if (rate === null) {
+              bg = '#64748b'
+              fg = '#ffffff'
+            } else {
+              const c = heatColor(rate)
+              bg = c.bg
+              fg = c.fg
+            }
             text = String(agg.total)
           } else if (!onSelect) {
             // pure heat map (report pages): blank empty cells
@@ -123,7 +188,7 @@ export default function ZoneGrid(props: {
             key={String(zone)}
             type="button"
             className={cls}
-            style={{ ...style, ...(bg ? { background: bg, color: '#fff' } : {}) }}
+            style={{ ...style, ...(bg ? { background: bg, color: fg } : {}) }}
             onClick={onSelect ? () => onSelect(zone) : undefined}
             data-zone={String(zone)}
             disabled={!onSelect}
@@ -132,6 +197,14 @@ export default function ZoneGrid(props: {
           </button>
         )
       })}
+      {/* Strike-zone border + internal tic-tac-toe lines, drawn on top of
+          whatever's in the cells (color, numbers) so the 3x3 zone boundary
+          stays visible even when the grid is busy with heat-map data. Pure
+          overlay — no pointer-events, doesn't affect taps on the cells
+          beneath it. Sized to the coarse layout's 3x3 (columns/rows 2-4);
+          identical placement works for granular since its 3x3 in-zone core
+          sits in the same spot. */}
+      <div className="zone-strike-outline" aria-hidden="true" />
     </div>
   )
 }

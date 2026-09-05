@@ -171,7 +171,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   display: grid;
   grid-template-columns: 44px 1fr 1fr 1fr 44px;
   grid-template-rows: 44px 56px 56px 56px 44px;
-  gap: 4px;
+  gap: 0;
   max-width: 360px;
   margin: 8px auto;
 }
@@ -182,7 +182,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 }
 .zone-grid-granular .zone-cell { font-size: 0.75rem; }
 .zone-cell {
-  border-radius: 8px;
+  border-radius: 0;
   padding: 0;
   min-height: 0;
   font-size: 0.9rem;
@@ -192,6 +192,26 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 .zone-out { background: #eef2f8; border: 1px dashed var(--border); color: var(--muted); }
 .zone-selected { outline: 3px solid var(--accent); outline-offset: -1px; font-weight: 700; }
 .zone-cell:disabled { opacity: 1; }
+
+/* Strike-zone outline + internal dividing lines, overlaid on top of the 3x3
+   in-zone cells regardless of their fill color/number — subtle (not pure
+   black) so it doesn't compete with heat-map colors, but always visible so
+   the strike zone stays distinguishable from the foul zone even when the
+   grid is busy. Pure visual overlay: no pointer-events, sits in the same
+   grid cell span as the 3x3 core so it lines up automatically in both the
+   coarse and granular layouts. */
+.zone-strike-outline {
+  grid-column: 2 / 5;
+  grid-row: 2 / 5;
+  pointer-events: none;
+  border: 4px solid rgba(13, 21, 38, 0.55);
+  border-radius: 0;
+  background-image:
+    linear-gradient(to right, transparent calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% + 2px), transparent calc(33.333% + 2px)),
+    linear-gradient(to right, transparent calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% + 2px), transparent calc(66.666% + 2px)),
+    linear-gradient(to bottom, transparent calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% + 2px), transparent calc(33.333% + 2px)),
+    linear-gradient(to bottom, transparent calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% + 2px), transparent calc(66.666% + 2px));
+}
 
 /* Live game */
 .count-display { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.05em; }
