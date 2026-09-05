@@ -661,13 +661,13 @@ export default function LiveGame() {
         const heat = heatPitches.length > 0 ? byZoneBattle(heatPitches) : undefined
         return (
         <>
-          <div className="card">
+          <div className="card" style={{ position: 'relative' }}>
             <div className="row spread">
               <div>
                 <div style={{ fontWeight: 700 }}>{batter.number ? `#${batter.number} ` : ''}{displayName(batter)}</div>
                 <div className="muted">bats {batter.bats} · vs {currentPitcher ? `${currentPitcher.number ? `#${currentPitcher.number} ` : ''}${displayName(currentPitcher)}` : '—'} · P: {gamePitchCount ?? 0}</div>
               </div>
-              <div className="row" style={{ gap: 10, alignItems: 'center', position: 'relative', marginLeft: 'auto' }}>
+              <div className="row" style={{ gap: 10, alignItems: 'center', marginLeft: 'auto' }}>
                 <span
                   className="inning-indicator"
                   title={`${halfLabel === 'Top' ? 'Top' : 'Bottom'} of inning ${curInning}`}
@@ -682,31 +682,33 @@ export default function LiveGame() {
                   ))}
                 </span>
                 <div className="count-display">{balls}-{strikes}</div>
-                <button className="small" onClick={() => setShowGameMenu((v) => !v)} title="Game menu" aria-label="Game menu">⚙</button>
-                {showGameMenu && (
-                  <div className="game-menu-dropdown">
-                    <button className="small" onClick={() => { setShowLineup((v) => !v); setShowGameMenu(false) }}>
-                      ☰ Batting order
-                    </button>
-                    <button className="small" onClick={() => { setChangingBatter((v) => !v); setShowGameMenu(false) }}>
-                      ↔ Wrong batter?
-                    </button>
-                    <button
-                      className="small"
-                      onClick={() => {
-                        setShowSubstitutePanel((v) => !v)
-                        setSubstitutingFor(batter.id)
-                        setShowGameMenu(false)
-                      }}
-                    >
-                      ⇄ Substitute
-                    </button>
-                    <button className="small" onClick={() => { setShowChangePitcher((v) => !v); setShowGameMenu(false) }}>
-                      ⚾ Change pitcher
-                    </button>
-                  </div>
-                )}
               </div>
+            </div>
+            <div style={{ position: 'absolute', right: 8, bottom: 8 }}>
+              <button className="small" onClick={() => setShowGameMenu((v) => !v)} title="Game menu" aria-label="Game menu">⚙</button>
+              {showGameMenu && (
+                <div className="game-menu-dropdown" style={{ top: 'auto', bottom: '100%', marginTop: 0, marginBottom: 4 }}>
+                  <button className="small" onClick={() => { setShowLineup((v) => !v); setShowGameMenu(false) }}>
+                    ☰ Batting order
+                  </button>
+                  <button className="small" onClick={() => { setChangingBatter((v) => !v); setShowGameMenu(false) }}>
+                    ↔ Wrong batter?
+                  </button>
+                  <button
+                    className="small"
+                    onClick={() => {
+                      setShowSubstitutePanel((v) => !v)
+                      setSubstitutingFor(batter.id)
+                      setShowGameMenu(false)
+                    }}
+                    >
+                    ⇄ Substitute
+                  </button>
+                  <button className="small" onClick={() => { setShowChangePitcher((v) => !v); setShowGameMenu(false) }}>
+                    ⚾ Change pitcher
+                  </button>
+                </div>
+              )}
             </div>
             <div className="row" style={{ marginTop: 8 }}>
               {changingBatter && (
