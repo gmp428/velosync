@@ -9,6 +9,7 @@ import ZoneGrid from '../components/ZoneGrid'
 import SuggestionPanel from '../components/SuggestionPanel'
 import LineupEditor from '../components/LineupEditor'
 import { battleAgg, battleRate, byZoneBattle, outcomeBreakdown, pct } from '../lib/stats'
+import { useHeaderExtra } from '../lib/headerExtra'
 
 type Half = 'top' | 'bottom'
 
@@ -169,8 +170,9 @@ export default function LiveGame() {
   const [showSubstitutePanel, setShowSubstitutePanel] = useState(false)
   // Showing the drag-to-reorder lineup panel
   const [showLineup, setShowLineup] = useState(false)
-  // Consolidated game-menu dropdown (Batting order / Wrong batter? / Substitute)
+  // Consolidated game-menu dropdown (Batting order / Wrong batter? / Substitute / Change pitcher)
   const [showGameMenu, setShowGameMenu] = useState(false)
+  const [showChangePitcher, setShowChangePitcher] = useState(false)
   // Transient "Ghost Batter — Out N" flash shown for each ghost-out slot the
   // order auto-advances past, so a skipped turn is visible instead of
   // silently jumping to the next real batter. null = not showing.
@@ -255,6 +257,11 @@ export default function LiveGame() {
       .then((r) => handleAdvanceResult(r, lu, game.currentPitcherId!))
       .finally(() => { bootingRef.current = false })
   }, [game?.status, atBatCount, game?.lineup, game?.currentPitcherId, gameId, roster])
+
+  useHeaderExtra(
+    opponent ? `vs ${opponent.name}` : null,
+    game ? <button className="small danger" onClick={() => endGame()}>End game</button> : null,
+  )
 
   if (!game || !opponent || !roster || !pitchers || !pitchTypes) return null
 
@@ -581,25 +588,7 @@ export default function LiveGame() {
           </div>
         </div>
       )}
-      <div className="row spread">
-        <h1 style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-          vs {opponent.name}
-          <button className="small danger" onClick={endGame}>End game</button>
-        </h1>
-        <span className="muted">{gamePitchCount ?? 0} pitches</span>
-      </div>
-
-      <div className="row">
-        <label style={{ margin: 0 }}>Pitching:</label>
-        <select
-          style={{ width: 'auto', flex: 1 }}
-          value={game.currentPitcherId ?? ''}
-          onChange={(e) => db.games.update(gameId, { currentPitcherId: e.target.value, updatedAt: now(), ...pendingSync() })}
-        >
-          {pitchers.map((p) => (
-            <option key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ''}{displayName(p)}</option>
-          ))}
-        </select>
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
         <button className="small" onClick={undo} disabled={!gamePitchCount && !openAtBat}>↩ Undo</button>
       </div>
 
@@ -676,7 +665,7 @@ export default function LiveGame() {
             <div className="row spread">
               <div>
                 <div style={{ fontWeight: 700 }}>{batter.number ? `#${batter.number} ` : ''}{displayName(batter)}</div>
-                <div className="muted">bats {batter.bats} · vs {displayName(currentPitcher)}</div>
+                <div className="muted">bats {batter.bats} · pitching: {currentPitcher ? `${currentPitcher.number ? `#${currentPitcher.number} ` : ''}${displayName(currentPitcher)}` : '—'} · {gamePitchCount ?? 0} pitches</div>
               </div>
               <div className="row" style={{ gap: 10, alignItems: 'center', position: 'relative' }}>
                 <span
@@ -712,6 +701,9 @@ export default function LiveGame() {
                     >
                       ⇄ Substitute
                     </button>
+                    <button className="small" onClick={() => { setShowChangePitcher((v) => !v); setShowGameMenu(false) }}>
+                      ⚾ Change pitcher
+                    </button>
                   </div>
                 )}
               </div>
@@ -722,6 +714,24 @@ export default function LiveGame() {
               )}
               {showSubstitutePanel && (
                 <button className="small" onClick={() => setShowSubstitutePanel(false)}>Cancel substitute</button>
+              )}
+              {showChangePitcher && (
+                <div className="row" style={{ alignItems: 'center', gap: 8 }}>
+                  <label style={{ margin: 0 }}>Pitching:</label>
+                  <select
+                    style={{ width: 'auto', flex: 1 }}
+                    value={game.currentPitcherId ?? ''}
+                    onChange={(e) => {
+                      db.games.update(gameId, { currentPitcherId: e.target.value, updatedAt: now(), ...pendingSync() })
+                      setShowChangePitcher(false)
+                    }}
+                  >
+                    {pitchers.map((p) => (
+                      <option key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ''}{displayName(p)}</option>
+                    ))}
+                  </select>
+                  <button className="small" onClick={() => setShowChangePitcher(false)}>Cancel</button>
+                </div>
               )}
               {history.length > 0 && (
                 <>

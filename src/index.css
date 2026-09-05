@@ -40,8 +40,8 @@ a { color: var(--accent); text-decoration: none; }
 
 .topbar {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 2px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
   margin-bottom: 10px;
@@ -49,6 +49,18 @@ a { color: var(--accent); text-decoration: none; }
   top: 0;
   background: var(--bg);
   z-index: 10;
+}
+.topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.topbar-subheader {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding-left: 2px;
 }
 .topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .topbar .brand img { height: 40px; width: auto; display: block; }
