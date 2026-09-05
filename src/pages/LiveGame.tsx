@@ -583,8 +583,8 @@ export default function LiveGame() {
       )}
       <div className="row spread">
         <h1 style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button className="small danger" onClick={endGame} title="End game" aria-label="End game">✕</button>
           vs {opponent.name}
+          <button className="small danger" onClick={endGame}>End game</button>
         </h1>
         <span className="muted">{gamePitchCount ?? 0} pitches</span>
       </div>
@@ -607,7 +607,6 @@ export default function LiveGame() {
           {!game.homeAway && (
             <button className="chip small-chip" onClick={toggleHalf} title="Switch top / bottom">{halfLabel}</button>
           )}
-          <span className="count-display" style={{ fontSize: '1.1rem' }}>Inning {curInning}</span>
       </div>
 
       {showLineup && (
@@ -875,7 +874,7 @@ export default function LiveGame() {
             <>
               <h3>2. Intended target <span className="muted" style={{ textTransform: 'none' }}>— tap where the catcher/pitcher were aiming</span></h3>
               <div className="zone-wrap">
-                <ZoneGrid selected={selIntendedZone} onSelect={setSelIntendedZone} granular={settings?.capture.granularZones} />
+                <ZoneGrid selected={selIntendedZone} onSelect={setSelIntendedZone} heat={heat} granular={settings?.capture.granularZones} />
               </div>
             </>
           )}
