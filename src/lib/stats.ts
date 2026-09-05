@@ -383,16 +383,22 @@ export function commandGrouping(pitches: Pitch[]): Map<Zone, GroupingCell> {
   return result
 }
 
-// Green (tight/good) -> yellow -> orange -> red (scattered/bad). avgDistance
-// of 1 is a perfect green; scales up to red by avgDistance 4+ (a reasonable
-// "very scattered" ceiling on a 5x5 grid where the max possible distance
-// from center is 5). Clamped so any distance beyond that still reads as red
-// rather than going off-scale.
-export function groupingColor(avgDistance: number): string {
-  const t = Math.max(0, Math.min(1, (avgDistance - 1) / 3)) // 0 at dist 1, 1 at dist 4+
-  // green (120°) -> yellow (60°) -> orange (30°) -> red (0°)
-  const hue = Math.round(120 * (1 - t))
-  return `hsl(${hue}, 70%, 45%)`
+// Colorblind-safe diverging scale (Okabe-Ito palette), used for the command
+// grouping heat map. Blue (tight/good) to vermillion/orange (scattered/bad),
+// quantized into 5 distinct bands rather than a smooth blend, matching
+// ZoneGrid's heatColor() so both heat maps in the app use one consistent,
+// colorblind-safe scale.
+const GROUPING_BANDS: Array<{ maxDistance: number; bg: string; fg: string }> = [
+  { maxDistance: 1.2, bg: '#0072B2', fg: '#ffffff' }, // near-perfect — strong blue
+  { maxDistance: 1.8, bg: '#56B4E9', fg: '#0d1526' },  // sky blue
+  { maxDistance: 2.4, bg: '#F0E442', fg: '#0d1526' },  // yellow — neutral middle
+  { maxDistance: 3.0, bg: '#E69F00', fg: '#0d1526' },  // orange
+  { maxDistance: Infinity, bg: '#D55E00', fg: '#ffffff' }, // vermillion — very scattered
+]
+
+export function groupingColor(avgDistance: number): { bg: string; fg: string } {
+  for (const band of GROUPING_BANDS) if (avgDistance <= band.maxDistance) return { bg: band.bg, fg: band.fg }
+  return GROUPING_BANDS[GROUPING_BANDS.length - 1]
 }
 
 

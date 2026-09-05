@@ -117,8 +117,8 @@ export default function PitcherReport() {
                   <h3 style={{ marginTop: 16 }}>Grouping heat map</h3>
                   <p className="muted">
                     Color shows how tightly clustered actual pitches were around each intended target —
-                    green = tight grouping, red = scattered. Tap a target zone to see where those pitches
-                    actually landed; tap it again to go back to the overall heat map.
+                    blue = tight grouping, vermillion (orange-red) = scattered. Tap a target zone to see
+                    where those pitches actually landed; tap it again to go back to the overall heat map.
                   </p>
                   <div className="chips">
                     <button className={`chip ${groupingPitchType === 'all' ? 'on' : ''}`} onClick={() => { setGroupingPitchType('all'); setDrillDownZone(null) }}>
