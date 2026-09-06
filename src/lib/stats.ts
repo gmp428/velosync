@@ -383,17 +383,20 @@ export function commandGrouping(pitches: Pitch[]): Map<Zone, GroupingCell> {
   return result
 }
 
-// Colorblind-safe diverging scale (Okabe-Ito palette), used for the command
-// grouping heat map. Blue (tight/good) to vermillion/orange (scattered/bad),
-// quantized into 5 distinct bands rather than a smooth blend, matching
-// ZoneGrid's heatColor() so both heat maps in the app use one consistent,
-// colorblind-safe scale.
+// Fixed 5-color scale (G's exact spec, not colorblind-safe by his explicit
+// choice/override — see session history): red (tightest/best) -> orange ->
+// yellow -> green -> blue (most scattered/worst), quantized into 5 solid
+// bands, never blended. NOTE: this deliberately differs from ZoneGrid's
+// heatColor() (win/loss heat map), which stays on the blue<->vermillion
+// colorblind-safe scale — G asked for these exact 5 colors on the COMMAND
+// grouping map specifically, overriding the colorblind-safe default for
+// this one feature only.
 const GROUPING_BANDS: Array<{ maxDistance: number; bg: string; fg: string }> = [
-  { maxDistance: 1.2, bg: '#0072B2', fg: '#ffffff' }, // near-perfect — strong blue
-  { maxDistance: 1.8, bg: '#56B4E9', fg: '#0d1526' },  // sky blue
-  { maxDistance: 2.4, bg: '#F0E442', fg: '#0d1526' },  // yellow — neutral middle
-  { maxDistance: 3.0, bg: '#E69F00', fg: '#0d1526' },  // orange
-  { maxDistance: Infinity, bg: '#D55E00', fg: '#ffffff' }, // vermillion — very scattered
+  { maxDistance: 1.2, bg: '#ED2E14', fg: '#ffffff' }, // tightest/best — red
+  { maxDistance: 1.8, bg: '#EE8102', fg: '#0d1526' },  // orange
+  { maxDistance: 2.4, bg: '#F4D908', fg: '#0d1526' },  // yellow
+  { maxDistance: 3.0, bg: '#74F94A', fg: '#0d1526' },  // green
+  { maxDistance: Infinity, bg: '#1200F0', fg: '#ffffff' }, // most scattered/worst — blue
 ]
 
 export function groupingColor(avgDistance: number): { bg: string; fg: string } {
