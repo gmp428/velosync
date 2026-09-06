@@ -392,7 +392,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   padding: 12px 12px env(safe-area-inset-bottom, 12px);
   overflow-y: auto;
 }
-.modal-overlay.modal-overlay-bottom { align-items: flex-end; }
+.modal-overlay.modal-overlay-bottom { padding-top: 15%; }
 .modal-overlay .card {
   width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto;
   margin-bottom: 12px;
