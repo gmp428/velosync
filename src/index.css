@@ -387,9 +387,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
    stray control higher up (e.g. Undo) could be mistaken for "cancel". */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 40;
-  display: flex; align-items: flex-end; justify-content: center;
+  display: flex; align-items: flex-start; justify-content: center;
   background: rgba(15, 23, 42, 0.55);
-  padding: 0 12px env(safe-area-inset-bottom, 12px);
+  padding: 12px 12px env(safe-area-inset-bottom, 12px);
+  overflow-y: auto;
 }
 .modal-overlay .card {
   width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto;
