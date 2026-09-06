@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   CAPTURE_PRESETS, compactDisplayName, db, displayName, getSettings, GHOST_OUT, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
-  type AtBatOutcome, type Batter, type InPlayOutcome, type Pitch, type PitchResult, type Zone,
+  type AtBat, type AtBatOutcome, type Batter, type InPlayOutcome, type Pitch, type PitchResult, type Zone,
 } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
 import SuggestionPanel from '../components/SuggestionPanel'
@@ -183,6 +183,16 @@ export default function LiveGame() {
   // Consolidated game-menu dropdown (Batting order / Wrong batter? / Substitute / Change pitcher)
   const [showGameMenu, setShowGameMenu] = useState(false)
   const [showChangePitcher, setShowChangePitcher] = useState(false)
+  // Confirm-before-undo modal, and the single most recent undo's snapshot
+  // (for Redo) -- cleared by any other real action so redo only ever covers
+  // the immediately preceding undo, never a deeper history.
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false)
+  const [lastUndone, setLastUndone] = useState<{
+    pitch: Pitch
+    atBatId: string
+    priorOutcome: AtBatOutcome | undefined
+    deletedEmptyAtBat: AtBat | undefined
+  } | null>(null)
   // Transient "Ghost Batter — Out N" flash shown for each ghost-out slot the
   // order auto-advances past, so a skipped turn is visible instead of
   // silently jumping to the next real batter. null = not showing.
@@ -210,6 +220,7 @@ export default function LiveGame() {
   useEffect(() => {
     setScope('pitcher')
     setChangingBatter(false)
+    setLastUndone(null)
   }, [openAtBat?.batterId])
 
   // Shows the "Ghost Batter — Out N" flash for 3 seconds per number, one
@@ -335,6 +346,7 @@ export default function LiveGame() {
       setChangingBatter(false)
       return
     }
+    setLastUndone(null)
     await db.transaction('rw', db.atBats, db.pitches, db.games, async () => {
       await db.atBats.update(openAtBat.id, { batterId: newBatterId, updatedAt: now(), ...pendingSync() })
       await db.pitches.where('atBatId').equals(openAtBat.id).modify({ batterId: newBatterId, updatedAt: now(), ...pendingSync() })
@@ -378,6 +390,7 @@ export default function LiveGame() {
       setShowSubstitutePanel(false)
       return
     }
+    setLastUndone(null)
     const replacement = incomingId ?? GHOST_OUT
     let becameGhostOut = false
     let newLineup: string[] = order
@@ -458,6 +471,7 @@ export default function LiveGame() {
   const commit = async (result: PitchResult, inPlay?: InPlayOutcome) => {
     if (!openAtBat || selType === null || selZone === null) return
     if (settings?.capture.intendedLocation && selIntendedZone === null) return
+    setLastUndone(null)
     let outcome: AtBatOutcome | undefined
     if (result === 'ball' && balls + 1 >= 4) outcome = 'walk'
     else if ((result === 'called_strike' || result === 'swinging_strike') && strikes + 1 >= 3) outcome = 'strikeout'
@@ -537,6 +551,7 @@ export default function LiveGame() {
   }
 
   const undo = async () => {
+    let snapshot: typeof lastUndone = null
     await db.transaction('rw', db.pitches, db.atBats, async () => {
       const last = await db.pitches.where('gameId').equals(gameId).last()
       if (!last) {
@@ -549,16 +564,31 @@ export default function LiveGame() {
         if (lastGhost) await db.atBats.delete(lastGhost.id)
         return
       }
+      const atBat = await db.atBats.get(last.atBatId)
       // If a fresh (pitchless) at-bat was already started after the last pitch, remove it
       const open = await db.atBats.where('gameId').equals(gameId).filter((ab) => ab.outcome === undefined).first()
+      let deletedEmptyAtBat: AtBat | undefined
       if (open && open.id !== last.atBatId) {
         const n = await db.pitches.where('atBatId').equals(open.id).count()
-        if (n === 0) await db.atBats.delete(open.id)
+        if (n === 0) { deletedEmptyAtBat = open; await db.atBats.delete(open.id) }
       }
+      snapshot = { pitch: last, atBatId: last.atBatId, priorOutcome: atBat?.outcome, deletedEmptyAtBat }
       await db.atBats.update(last.atBatId, { outcome: undefined, updatedAt: now(), ...pendingSync() })
       await db.pitches.delete(last.id)
     })
+    setLastUndone(snapshot)
     setShowInPlay(false)
+  }
+
+  const redo = async () => {
+    if (!lastUndone) return
+    const { pitch, atBatId, priorOutcome, deletedEmptyAtBat } = lastUndone
+    await db.transaction('rw', db.pitches, db.atBats, async () => {
+      await db.pitches.add(pitch)
+      await db.atBats.update(atBatId, { outcome: priorOutcome, updatedAt: now(), ...pendingSync() })
+      if (deletedEmptyAtBat) await db.atBats.add(deletedEmptyAtBat)
+    })
+    setLastUndone(null)
   }
 
   const endGame = async () => {
@@ -695,7 +725,7 @@ export default function LiveGame() {
               </div>
             </div>
             <div style={{ position: 'absolute', right: 8, bottom: 8, display: 'flex', gap: 6 }}>
-              <button className="small icon-btn" onClick={undo} disabled={!gamePitchCount && !openAtBat} title="Undo" aria-label="Undo">↩</button>
+              <button className="small icon-btn" onClick={() => setShowUndoConfirm(true)} disabled={!gamePitchCount && !openAtBat} title="Undo" aria-label="Undo">↩</button>
               <button className="small icon-btn" onClick={() => setShowGameMenu((v) => !v)} title="Game menu" aria-label="Game menu">⚙</button>
               {showGameMenu && (
                 <div className="game-menu-dropdown">
@@ -858,6 +888,31 @@ export default function LiveGame() {
                     <option key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ''}{displayName(p)}</option>
                   ))}
                 </select>
+              </div>
+            </div>
+          )}
+
+          {showUndoConfirm && (
+            <div className="modal-overlay" onClick={() => setShowUndoConfirm(false)}>
+              <div className="card stack" onClick={(e) => e.stopPropagation()}>
+                <strong>Undo last pitch?</strong>
+                <p className="muted" style={{ margin: 0 }}>This removes the most recent pitch logged.</p>
+                <div className="row">
+                  <button
+                    className="primary grow danger"
+                    onClick={async () => { await undo(); setShowUndoConfirm(false) }}
+                  >
+                    Undo
+                  </button>
+                  <button
+                    className="grow"
+                    onClick={async () => { await redo(); setShowUndoConfirm(false) }}
+                    disabled={!lastUndone}
+                  >
+                    ↷ Redo last undo
+                  </button>
+                </div>
+                <button className="small" onClick={() => setShowUndoConfirm(false)}>Cancel</button>
               </div>
             </div>
           )}
