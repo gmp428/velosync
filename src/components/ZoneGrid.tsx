@@ -91,10 +91,11 @@ export default function ZoneGrid(props: {
   onSelect?: (z: Zone) => void
   heat?: Map<Zone, BattleAgg>
   grouping?: Map<Zone, GroupingCell> // command grouping heat map (granular only, see stats.ts commandGrouping)
+  markedZone?: Zone | null // highlighted yellow, independent of selected/heat (e.g. the intended target, shown while picking the actual landing zone)
   compact?: boolean
   granular?: boolean
 }) {
-  const { selected, onSelect, heat, grouping, compact, granular } = props
+  const { selected, onSelect, heat, grouping, markedZone, compact, granular } = props
   const CELLS = granular ? CELLS_GRANULAR : CELLS_COARSE
   const resolution = granular ? 'granular' : 'coarse'
   return (
@@ -177,6 +178,10 @@ export default function ZoneGrid(props: {
             // pure heat map (report pages): blank empty cells
             text = ''
           }
+        }
+        if (markedZone !== null && markedZone !== undefined && zone === markedZone) {
+          bg = '#F4D908' // yellow, same shade as the palette's yellow band
+          fg = '#0d1526'
         }
         const cls = [
           'zone-cell',
