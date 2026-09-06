@@ -589,9 +589,6 @@ export default function LiveGame() {
           </div>
         </div>
       )}
-      <div className="row" style={{ justifyContent: 'flex-end' }}>
-        <button className="small" onClick={undo} disabled={!gamePitchCount && !openAtBat}>↩ Undo</button>
-      </div>
 
       <div className="row" style={{ marginTop: 8 }}>
           {!game.homeAway && (
@@ -685,8 +682,9 @@ export default function LiveGame() {
                 <div className="count-display">{balls}-{strikes}</div>
               </div>
             </div>
-            <div style={{ position: 'absolute', right: 8, bottom: 8 }}>
-              <button className="small" onClick={() => setShowGameMenu((v) => !v)} title="Game menu" aria-label="Game menu">⚙</button>
+            <div style={{ position: 'absolute', right: 8, bottom: 8, display: 'flex', gap: 6 }}>
+              <button className="small icon-btn" onClick={undo} disabled={!gamePitchCount && !openAtBat} title="Undo" aria-label="Undo">↩</button>
+              <button className="small icon-btn" onClick={() => setShowGameMenu((v) => !v)} title="Game menu" aria-label="Game menu">⚙</button>
               {showGameMenu && (
                 <div className="game-menu-dropdown" style={{ top: 'auto', bottom: '100%', marginTop: 0, marginBottom: 4 }}>
                   <button className="small" onClick={() => { setShowLineup((v) => !v); setShowGameMenu(false) }}>
