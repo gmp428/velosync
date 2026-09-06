@@ -15,7 +15,7 @@ const CAPTURE_LABELS: Array<{ key: keyof CaptureFlags; label: string; help: stri
   { key: 'strikeType', label: 'Strike detail', help: 'Distinguish called vs swinging strikes.' },
   { key: 'inPlayDetail', label: 'Hit detail', help: 'Log single / double / triple / HR / error (vs just Out / Hit).' },
   { key: 'granularZones', label: 'Granular foul zones', help: 'Split each out-of-zone strip into thirds, plus the 4 corners (25 zones total instead of 13).' },
-  { key: 'intendedLocation', label: 'Intended location', help: 'Record the target spot vs where it finished.' },
+  { key: 'intendedLocation', label: 'Intended location', help: 'Adds one extra tap per pitch: mark where the catcher/pitcher were aiming before logging where it actually went. Unlocks command % and miss-tendency reports.' },
   { key: 'fieldPosition', label: 'Ball-in-play location', help: 'Field diamond — where the ball was hit.' },
   { key: 'battedBallType', label: 'Batted-ball type', help: 'Ground/fly/line, bunt, hard/soft hit, fielder’s choice.' },
 ]

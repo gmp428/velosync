@@ -257,6 +257,9 @@ export interface Pitch {
   strikes: number
   pitchTypeId: string
   zone: Zone
+  intendedZone?: Zone // where the pitcher/catcher were aiming (only when the
+                       // Intended location capture flag is on; undefined for
+                       // every pitch logged before/without it)
   result: PitchResult
   inPlay?: InPlayOutcome
   inning?: number // inning this pitch was thrown in (undefined = untracked)
@@ -287,6 +290,11 @@ export interface AppSettings {
   id: 'app'
   preset: LoggingPreset
   capture: CaptureFlags
+  // Report-display setting only — never affects what's logged, freely
+  // changeable at any time with no effect on historical data. Governs how
+  // "Command %" counts a pitch as "hit the target": tight = same zone only,
+  // loose = same zone or an adjacent zone (see COMMAND_ADJACENCY).
+  commandMatchMode: 'tight' | 'loose'
   updatedAt: number
 }
 
@@ -300,7 +308,7 @@ const CAPTURE_STANDARD: CaptureFlags = {
 }
 const CAPTURE_DETAILED: CaptureFlags = {
   strikeType: true, inPlayDetail: true, granularZones: true,
-  intendedLocation: true, fieldPosition: true, battedBallType: true,
+  intendedLocation: false, fieldPosition: true, battedBallType: true,
 }
 
 export const CAPTURE_PRESETS: Record<'quick' | 'standard' | 'detailed', CaptureFlags> = {
@@ -311,10 +319,10 @@ export const CAPTURE_PRESETS: Record<'quick' | 'standard' | 'detailed', CaptureF
 
 // Capture flags that actually change logging today. The rest are shown in
 // Settings as "coming soon" so the framework is visible but honest.
-export const LIVE_CAPTURE_FLAGS: Array<keyof CaptureFlags> = ['strikeType', 'inPlayDetail', 'granularZones']
+export const LIVE_CAPTURE_FLAGS: Array<keyof CaptureFlags> = ['strikeType', 'inPlayDetail', 'granularZones', 'intendedLocation']
 
 export function defaultSettings(): AppSettings {
-  return { id: 'app', preset: 'standard', capture: { ...CAPTURE_STANDARD }, updatedAt: now() }
+  return { id: 'app', preset: 'standard', capture: { ...CAPTURE_STANDARD }, commandMatchMode: 'tight', updatedAt: now() }
 }
 
 // The stored settings row, or the default when none has been saved yet (existing
@@ -325,8 +333,9 @@ export function defaultSettings(): AppSettings {
 export async function getSettings(): Promise<AppSettings> {
   const s = await db.settings.get('app')
   if (!s) return defaultSettings()
-  if (s.preset !== 'custom') return { ...s, capture: { ...CAPTURE_PRESETS[s.preset] } }
-  return { ...s, capture: { ...CAPTURE_QUICK, ...s.capture } }
+  const commandMatchMode = s.commandMatchMode ?? 'tight' // backfill for rows saved before this field existed
+  if (s.preset !== 'custom') return { ...s, capture: { ...CAPTURE_PRESETS[s.preset] }, commandMatchMode }
+  return { ...s, capture: { ...CAPTURE_QUICK, ...s.capture }, commandMatchMode }
 }
 
 export async function saveSettings(patch: Partial<Omit<AppSettings, 'id'>>): Promise<void> {
