@@ -710,30 +710,6 @@ export default function LiveGame() {
               )}
             </div>
             <div className="row" style={{ marginTop: 8 }}>
-              {changingBatter && (
-                <button className="small" onClick={() => setChangingBatter(false)}>Cancel wrong-batter</button>
-              )}
-              {showSubstitutePanel && (
-                <button className="small" onClick={() => setShowSubstitutePanel(false)}>Cancel substitute</button>
-              )}
-              {showChangePitcher && (
-                <div className="row" style={{ alignItems: 'center', gap: 8 }}>
-                  <label style={{ margin: 0 }}>Pitching:</label>
-                  <select
-                    style={{ width: 'auto', flex: 1 }}
-                    value={game.currentPitcherId ?? ''}
-                    onChange={(e) => {
-                      db.games.update(gameId, { currentPitcherId: e.target.value, updatedAt: now(), ...pendingSync() })
-                      setShowChangePitcher(false)
-                    }}
-                  >
-                    {pitchers.map((p) => (
-                      <option key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ''}{displayName(p)}</option>
-                    ))}
-                  </select>
-                  <button className="small" onClick={() => setShowChangePitcher(false)}>Cancel</button>
-                </div>
-              )}
               {history.length > 0 && (
                 <>
                   <button
@@ -755,26 +731,31 @@ export default function LiveGame() {
           </div>
 
           {changingBatter && (
-            <div className="card stack">
-              <strong>Switch this at-bat to…</strong>
-              <div className="list">
-                {order.map((id) => {
-                  const b = roster.find((x) => x.id === id)
-                  if (!b) return null
-                  return (
-                    <button
-                      key={b.id}
-                      className="list-item"
-                      style={{ width: '100%' }}
-                      disabled={b.id === batter.id}
-                      onClick={() => switchBatter(b.id)}
-                    >
-                      <span>{b.number ? `#${b.number} ` : ''}{displayName(b)}</span>
-                      <span className="pill">bats {b.bats}</span>
-                      {b.id === batter.id ? <span className="chev">current</span> : <span className="chev">›</span>}
-                    </button>
-                  )
-                })}
+            <div className="modal-overlay" onClick={() => setChangingBatter(false)}>
+              <div className="card stack" onClick={(e) => e.stopPropagation()}>
+                <div className="row spread">
+                  <strong>Switch this at-bat to…</strong>
+                  <button className="small" onClick={() => setChangingBatter(false)}>Close</button>
+                </div>
+                <div className="list">
+                  {order.map((id) => {
+                    const b = roster.find((x) => x.id === id)
+                    if (!b) return null
+                    return (
+                      <button
+                        key={b.id}
+                        className="list-item"
+                        style={{ width: '100%' }}
+                        disabled={b.id === batter.id}
+                        onClick={() => switchBatter(b.id)}
+                      >
+                        <span>{b.number ? `#${b.number} ` : ''}{displayName(b)}</span>
+                        <span className="pill">bats {b.bats}</span>
+                        {b.id === batter.id ? <span className="chev">current</span> : <span className="chev">›</span>}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -790,54 +771,82 @@ export default function LiveGame() {
             const inLineup = new Set(order)
             const eligibleIncoming = roster.filter((b) => b.id !== outgoingId && !inLineup.has(b.id))
             return (
-              <div className="card stack">
-                <strong>Substitute — replace who?</strong>
-                <select
-                  style={{ width: '100%' }}
-                  value={outgoingId}
-                  onChange={(e) => setSubstitutingFor(e.target.value)}
-                >
-                  {order.map((id) => {
-                    const b = roster.find((x) => x.id === id)
-                    if (!b) return null
-                    return <option key={id} value={id}>{b.number ? `#${b.number} ` : ''}{displayName(b)}</option>
-                  })}
-                </select>
-                <strong>Coming in for {outgoing ? displayName(outgoing) : '…'}</strong>
-                {eligibleIncoming.length === 0 && (
-                  <p className="empty">No bench players available on {opponent.name}’s roster.</p>
-                )}
-                <div className="list">
-                  {eligibleIncoming.map((b) => (
+              <div className="modal-overlay" onClick={() => setShowSubstitutePanel(false)}>
+                <div className="card stack" onClick={(e) => e.stopPropagation()}>
+                  <div className="row spread">
+                    <strong>Substitute — replace who?</strong>
+                    <button className="small" onClick={() => setShowSubstitutePanel(false)}>Close</button>
+                  </div>
+                  <select
+                    style={{ width: '100%' }}
+                    value={outgoingId}
+                    onChange={(e) => setSubstitutingFor(e.target.value)}
+                  >
+                    {order.map((id) => {
+                      const b = roster.find((x) => x.id === id)
+                      if (!b) return null
+                      return <option key={id} value={id}>{b.number ? `#${b.number} ` : ''}{displayName(b)}</option>
+                    })}
+                  </select>
+                  <strong>Coming in for {outgoing ? displayName(outgoing) : '…'}</strong>
+                  {eligibleIncoming.length === 0 && (
+                    <p className="empty">No bench players available on {opponent.name}’s roster.</p>
+                  )}
+                  <div className="list">
+                    {eligibleIncoming.map((b) => (
+                      <button
+                        key={b.id}
+                        className="list-item"
+                        style={{ width: '100%' }}
+                        onClick={() => substitutePlayer(outgoingId, b.id)}
+                      >
+                        <span>{b.number ? `#${b.number} ` : ''}{displayName(b)}</span>
+                        <span className="pill">bats {b.bats}</span>
+                        <span className="chev">›</span>
+                      </button>
+                    ))}
                     <button
-                      key={b.id}
                       className="list-item"
                       style={{ width: '100%' }}
-                      onClick={() => substitutePlayer(outgoingId, b.id)}
+                      onClick={() => substitutePlayer(outgoingId, null)}
                     >
-                      <span>{b.number ? `#${b.number} ` : ''}{displayName(b)}</span>
-                      <span className="pill">bats {b.bats}</span>
+                      <span>No substitute — mark as Ghost Batter (Auto Out)</span>
                       <span className="chev">›</span>
                     </button>
-                  ))}
-                  <button
-                    className="list-item"
-                    style={{ width: '100%' }}
-                    onClick={() => substitutePlayer(outgoingId, null)}
-                  >
-                    <span>No substitute — mark as Ghost Batter (Auto Out)</span>
-                    <span className="chev">›</span>
-                  </button>
+                  </div>
+                  <Link to={`/opponent/${game.opponentId}`} className="btn small">
+                    + Add player to roster
+                  </Link>
+                  <p className="muted" style={{ margin: 0 }}>
+                    Add the new player on the team page, then come back to this game — it’ll resume right where you left off.
+                  </p>
                 </div>
-                <Link to={`/opponent/${game.opponentId}`} className="btn small">
-                  + Add player to roster
-                </Link>
-                <p className="muted" style={{ margin: 0 }}>
-                  Add the new player on the team page, then come back to this game — it’ll resume right where you left off.
-                </p>
               </div>
             )
           })()}
+
+          {showChangePitcher && (
+            <div className="modal-overlay" onClick={() => setShowChangePitcher(false)}>
+              <div className="card stack" onClick={(e) => e.stopPropagation()}>
+                <div className="row spread">
+                  <strong>Change pitcher</strong>
+                  <button className="small" onClick={() => setShowChangePitcher(false)}>Close</button>
+                </div>
+                <select
+                  style={{ width: '100%' }}
+                  value={game.currentPitcherId ?? ''}
+                  onChange={(e) => {
+                    db.games.update(gameId, { currentPitcherId: e.target.value, updatedAt: now(), ...pendingSync() })
+                    setShowChangePitcher(false)
+                  }}
+                >
+                  {pitchers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ''}{displayName(p)}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           {selType === null && <SuggestionPanel batter={batter} currentPitcherId={game.currentPitcherId} />}
 

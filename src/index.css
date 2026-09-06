@@ -380,6 +380,21 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   padding: 28px 40px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
 }
 .ghost-flash-title { font-size: 1.4rem; font-weight: 700; font-style: italic; }
+
+/* Modal overlay for in-game panels (Wrong batter?, Substitute, Change
+   pitcher) that need to pop on top of the screen with their own close
+   button attached, instead of rendering inline lower on the page where a
+   stray control higher up (e.g. Undo) could be mistaken for "cancel". */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(15, 23, 42, 0.55);
+  padding: 0 12px env(safe-area-inset-bottom, 12px);
+}
+.modal-overlay .card {
+  width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto;
+  margin-bottom: 12px;
+}
 .ghost-flash-sub { margin-top: 6px; color: var(--muted); font-size: 1rem; }
 @keyframes ghost-flash-fade {
   0% { opacity: 0; }
