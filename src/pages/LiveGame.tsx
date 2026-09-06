@@ -892,13 +892,17 @@ export default function LiveGame() {
 
           {selType !== null && (!settings?.capture.intendedLocation || selIntendedZone !== null) && (
           <>
-          <h3>{settings?.capture.intendedLocation ? '3' : '2'}. Location {selZone === null && <span className="muted" style={{ textTransform: 'none' }}>— tap where the pitch went</span>}</h3>
-          {settings?.capture.intendedLocation && selIntendedZone !== null && (
-            <div className="row spread selected-pitch" style={{ marginBottom: 8 }}>
-              <span><span className="muted">Target:</span> <strong>{zoneLabel(selIntendedZone)}</strong></span>
-              <button className="small" onClick={() => setSelIntendedZone(null)}>✎ Change target</button>
-            </div>
-          )}
+          <h3>
+            {settings?.capture.intendedLocation ? '3' : '2'}. Location
+            {selZone === null && (
+              <span className="muted" style={{ textTransform: 'none' }}>
+                {' — '}
+                {settings?.capture.intendedLocation
+                  ? <>yellow box is intended location · <button className="link-btn" onClick={() => setSelIntendedZone(null)}>Change target</button></>
+                  : 'tap where the pitch went'}
+              </span>
+            )}
+          </h3>
           <div className="zone-wrap">
             <ZoneGrid selected={selZone} onSelect={setSelZone} heat={settings?.capture.intendedLocation ? undefined : heat} markedZone={settings?.capture.intendedLocation ? selIntendedZone : undefined} granular={settings?.capture.granularZones} />
             {selZone !== null && (

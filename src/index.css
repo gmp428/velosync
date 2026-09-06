@@ -127,6 +127,17 @@ button.danger { border-color: #e0a3a3; color: var(--bad); }
 .warning { color: #a66b00; font-size: 0.9rem; }
 button.small { min-height: 34px; padding: 6px 10px; font-size: 0.85rem; border-radius: 8px; }
 button.small.icon-btn { width: 34px; min-width: 34px; padding: 6px; display: inline-flex; align-items: center; justify-content: center; }
+button.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  min-height: 0;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
 button:disabled { opacity: 0.45; cursor: default; }
 
 .card {
