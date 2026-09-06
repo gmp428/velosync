@@ -34,8 +34,12 @@ export function useHeaderExtraState() {
 }
 
 // Call from a page to register header content. Automatically clears itself
-// when the page unmounts or when subheader/rightAction change to null.
-export function useHeaderExtra(subheader: ReactNode | null, rightAction: ReactNode | null) {
+// when the page unmounts. `deps` should be primitive values that actually
+// determine subheader/rightAction's content (e.g. [opponent?.name]) — NOT
+// the JSX nodes themselves, since JSX elements are new object references on
+// every render and would otherwise re-fire this effect (and re-render the
+// whole app tree via the shared context) on every single LiveGame render.
+export function useHeaderExtra(subheader: ReactNode | null, rightAction: ReactNode | null, deps: unknown[]) {
   const ctx = useContext(HeaderExtraContext)
   if (!ctx) throw new Error('useHeaderExtra must be used within HeaderExtraProvider')
   const { setState } = ctx
@@ -43,5 +47,5 @@ export function useHeaderExtra(subheader: ReactNode | null, rightAction: ReactNo
     setState({ subheader, rightAction })
     return () => setState({ subheader: null, rightAction: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subheader, rightAction])
+  }, deps)
 }

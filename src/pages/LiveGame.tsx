@@ -261,6 +261,7 @@ export default function LiveGame() {
   useHeaderExtra(
     opponent ? `vs ${opponent.name}` : null,
     game ? <button className="small danger" onClick={() => endGame()}>End game</button> : null,
+    [opponent?.name, Boolean(game)],
   )
 
   if (!game || !opponent || !roster || !pitchers || !pitchTypes) return null
