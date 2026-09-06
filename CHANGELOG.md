@@ -4,6 +4,48 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-09-05
+
+### Added
+- Intended pitch location: new opt-in Settings toggle ("Intended location",
+  under Advanced) that adds one extra tap per pitch — mark where the
+  catcher/pitcher were aiming before logging where it actually landed.
+  Unlocks Command % and grouping-heat-map reports on the Pitcher Report page.
+- Command %: Tight (exact-zone match) vs. Loose (adjacent-zone counts too)
+  strictness selector on the Pitcher Report, showing overall command
+  percentage for pitchers using intended-location capture.
+- Command grouping heat map: colors each intended target zone by how
+  tightly actual pitches clustered around it, with a pitch-type filter.
+  Tap a target zone to freeze its color and see per-zone landing counts
+  drawn directly on the grid; tap again to return to the overall heat map.
+  A color-swatch legend (labeled Tight -> Scattered) sits above the map.
+- Persistent strike-zone outline and internal dividing lines on every
+  zone grid (live-game logging, Batter Report, Pitcher Report), staying
+  visible regardless of heat-map coloring or numbers drawn on top.
+
+### Changed
+- All heat-map coloring app-wide (win/loss heat maps and the command
+  grouping map) now uses a single fixed 5-color scale — red (best/won) ->
+  orange -> yellow -> green -> blue (worst/hit) — replacing the earlier
+  blue<->vermillion palette.
+- The pitch-type selection screen's win-rate fill bar is now colored with
+  the same 5-color scale, smoothly blended by exact percentage rather than
+  a flat single color.
+- Zone grid cells are now square with no gaps between them (previously
+  rounded buttons with visible spacing), and the strike-zone lines are
+  thicker.
+- A batter's in-game pitch-type stats now default to "vs current pitcher"
+  instead of "All pitchers" when an at-bat opens.
+
+### Fixed
+- The intended-target zone grid was missing heat-map coloring entirely,
+  showing plain uncolored cells instead of historical win-rate data — the
+  most important part of the feature (seeing where a pitch type has
+  worked before committing to a target) was silently not functioning.
+- The grouping heat map's frozen target-zone cell showed the total number
+  of pitches aimed there instead of how many actually landed on target,
+  which double-counted against the other zones' landed-elsewhere tallies.
+
 ## [0.11.0] — 2026-09-03
 
 ### Added
