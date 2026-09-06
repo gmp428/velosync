@@ -854,7 +854,7 @@ export default function LiveGame() {
             <>
               <h3>2. Intended target <span className="muted" style={{ textTransform: 'none' }}>— tap where the catcher/pitcher were aiming</span></h3>
               <div className="zone-wrap">
-                <ZoneGrid selected={selIntendedZone} onSelect={setSelIntendedZone} granular={settings?.capture.granularZones} />
+                <ZoneGrid selected={selIntendedZone} onSelect={setSelIntendedZone} heat={heat} granular={settings?.capture.granularZones} />
               </div>
             </>
           )}
