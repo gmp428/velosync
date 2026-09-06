@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, displayName, fullName, getSettings, pitcherArsenal, saveSettings, type Zone, zoneLabel } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
 import {
-  aggregate, byPitchType, byZoneBattle, commandAgg, commandGrouping, commandRate, filterByWindow, pct, successRate,
+  aggregate, byPitchType, byZoneBattle, commandAgg, commandGrouping, commandRate, filterByWindow, GROUPING_BANDS, pct, successRate,
   WINDOW_LABELS, type TimeWindow,
 } from '../lib/stats'
 
@@ -116,10 +116,19 @@ export default function PitcherReport() {
                 <>
                   <h3 style={{ marginTop: 16 }}>Grouping heat map</h3>
                   <p className="muted">
-                    Color shows how tightly clustered actual pitches were around each intended target —
-                    red = tight grouping, blue = scattered. Tap a target zone to see
-                    where those pitches actually landed; tap it again to go back to the overall heat map.
+                    Color shows how tightly clustered actual pitches were around each intended target.
+                    Tap a target zone to see where those pitches actually landed; tap it again to go
+                    back to the overall heat map.
                   </p>
+                  <div className="row" style={{ alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                    <span className="muted" style={{ fontSize: '0.75rem' }}>Tight</span>
+                    <div style={{ display: 'flex', flex: 1, height: 10, borderRadius: 4, overflow: 'hidden' }}>
+                      {GROUPING_BANDS.map((band, i) => (
+                        <div key={i} style={{ flex: 1, background: band.bg }} />
+                      ))}
+                    </div>
+                    <span className="muted" style={{ fontSize: '0.75rem' }}>Scattered</span>
+                  </div>
                   <div className="chips">
                     <button className={`chip ${groupingPitchType === 'all' ? 'on' : ''}`} onClick={() => { setGroupingPitchType('all'); setDrillDownZone(null) }}>
                       All pitches

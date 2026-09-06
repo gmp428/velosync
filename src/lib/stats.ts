@@ -391,7 +391,7 @@ export function commandGrouping(pitches: Pitch[]): Map<Zone, GroupingCell> {
 // colorblind-safe scale — G asked for these exact 5 colors on the COMMAND
 // grouping map specifically, overriding the colorblind-safe default for
 // this one feature only.
-const GROUPING_BANDS: Array<{ maxDistance: number; bg: string; fg: string }> = [
+export const GROUPING_BANDS: Array<{ maxDistance: number; bg: string; fg: string }> = [
   { maxDistance: 1.2, bg: '#ED2E14', fg: '#ffffff' }, // tightest/best — red
   { maxDistance: 1.8, bg: '#EE8102', fg: '#0d1526' },  // orange
   { maxDistance: 2.4, bg: '#F4D908', fg: '#0d1526' },  // yellow
