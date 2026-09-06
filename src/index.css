@@ -201,7 +201,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   font-size: 0.9rem;
   color: var(--text);
 }
-.zone-in { background: var(--panel-2); border: 1px solid var(--border); }
+.zone-in { background: var(--panel-2); }
 .zone-out { background: #eef2f8; border: 1px dashed var(--border); color: var(--muted); }
 .zone-selected { outline: 3px solid var(--accent); outline-offset: -1px; font-weight: 700; }
 .zone-cell:disabled { opacity: 1; }
