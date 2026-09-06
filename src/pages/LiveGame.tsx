@@ -900,7 +900,7 @@ export default function LiveGame() {
             </div>
           )}
           <div className="zone-wrap">
-            <ZoneGrid selected={selZone} onSelect={setSelZone} heat={heat} granular={settings?.capture.granularZones} />
+            <ZoneGrid selected={selZone} onSelect={setSelZone} heat={settings?.capture.intendedLocation ? undefined : heat} granular={settings?.capture.granularZones} />
             {selZone !== null && (
               <div className="result-overlay">
                 <div className="row spread" style={{ marginBottom: 6 }}>
@@ -939,7 +939,7 @@ export default function LiveGame() {
               </div>
             )}
           </div>
-          {heat && (
+          {heat && !settings?.capture.intendedLocation && (
             <p className="muted" style={{ textAlign: 'center', margin: '0 0 8px' }}>
               Red = our pitch won · blue = they hit it · number = pitches there
             </p>
