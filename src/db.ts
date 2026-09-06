@@ -121,6 +121,21 @@ export function displayName(p: { firstName?: string; lastName?: string; name?: s
   return '?'
 }
 
+// Same as displayName, but compresses long last names down to initials
+// (e.g. "C. Reyes-Hernandez" -> "C. R-H") once the full display name would
+// exceed maxLen — keeps compact chip/button UI from overflowing next to a
+// fixed-position element (e.g. the game-menu gear icon) when a roster has
+// an unusually long name. Short names are returned unchanged.
+export function compactDisplayName(p: { firstName?: string; lastName?: string; name?: string; number?: string } | undefined, maxLen = 12): string {
+  const full = displayName(p)
+  if (full.length <= maxLen || !p?.firstName || !p?.lastName) return full
+  const initials = p.lastName
+    .split('-')
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('-')
+  return `${p.firstName[0].toUpperCase()}. ${initials}`
+}
+
 // Full "First Last" (for report titles). Same "Batter #N" placeholder
 // fallback as displayName for an unnamed jersey-number-only quick-add.
 export function fullName(p: { firstName?: string; lastName?: string; name?: string; number?: string } | undefined): string {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CAPTURE_PRESETS, db, displayName, getSettings, GHOST_OUT, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
+  CAPTURE_PRESETS, compactDisplayName, db, displayName, getSettings, GHOST_OUT, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
   type AtBatOutcome, type Batter, type InPlayOutcome, type Pitch, type PitchResult, type Zone,
 } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
@@ -665,7 +665,7 @@ export default function LiveGame() {
             <div className="row spread">
               <div>
                 <div style={{ fontWeight: 700 }}>{batter.number ? `#${batter.number} ` : ''}{displayName(batter)}</div>
-                <div className="muted">bats {batter.bats} · vs {currentPitcher ? `${currentPitcher.number ? `#${currentPitcher.number} ` : ''}${displayName(currentPitcher)}` : '—'} · P: {gamePitchCount ?? 0}</div>
+                <div className="muted">bats {batter.bats} · vs {currentPitcher ? `${currentPitcher.number ? `#${currentPitcher.number} ` : ''}${compactDisplayName(currentPitcher)}` : '—'} · P: {gamePitchCount ?? 0}</div>
               </div>
               <div className="row" style={{ gap: 10, alignItems: 'center', marginLeft: 'auto' }}>
                 <span
@@ -748,7 +748,7 @@ export default function LiveGame() {
                     onClick={() => setScope('pitcher')}
                     disabled={vsPitcherCount === 0}
                   >
-                    vs {displayName(currentPitcher)} ({vsPitcherCount})
+                    vs {compactDisplayName(currentPitcher)} ({vsPitcherCount})
                   </button>
                 </>
               )}
