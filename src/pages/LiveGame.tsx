@@ -147,6 +147,16 @@ export default function LiveGame() {
     [openAtBat?.id],
   )
   const gamePitchCount = useLiveQuery(() => db.pitches.where('gameId').equals(gameId).count(), [gameId])
+  // Scoped to the CURRENT pitcher only, not the whole game — switching
+  // pitchers should show each one's own running pitch count, and switching
+  // back to a prior pitcher should correctly resume from where they left
+  // off rather than showing the game-wide total for everyone.
+  const currentPitcherPitchCount = useLiveQuery(
+    () => (game?.currentPitcherId
+      ? db.pitches.where('gameId').equals(gameId).filter((p) => p.pitcherId === game.currentPitcherId).count()
+      : Promise.resolve(0)),
+    [gameId, game?.currentPitcherId],
+  )
   const atBatCount = useLiveQuery(() => db.atBats.where('gameId').equals(gameId).count(), [gameId])
   const gameAtBats = useLiveQuery(() => db.atBats.where('gameId').equals(gameId).toArray(), [gameId])
   // All history on the current batter, live-updating as pitches are logged
@@ -665,7 +675,7 @@ export default function LiveGame() {
             <div className="row spread">
               <div>
                 <div style={{ fontWeight: 700 }}>{batter.number ? `#${batter.number} ` : ''}{displayName(batter)}</div>
-                <div className="muted">bats {batter.bats} · vs {currentPitcher ? `${currentPitcher.number ? `#${currentPitcher.number} ` : ''}${compactDisplayName(currentPitcher)}` : '—'} · P: {gamePitchCount ?? 0}</div>
+                <div className="muted">bats {batter.bats} · vs {currentPitcher ? `${currentPitcher.number ? `#${currentPitcher.number} ` : ''}${compactDisplayName(currentPitcher)}` : '—'} · P: {currentPitcherPitchCount ?? 0}</div>
               </div>
               <div className="row" style={{ gap: 10, alignItems: 'center', marginLeft: 'auto' }}>
                 <span
