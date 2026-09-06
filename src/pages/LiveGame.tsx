@@ -597,31 +597,33 @@ export default function LiveGame() {
       </div>
 
       {showLineup && (
-        <div className="card stack">
-          <div className="row spread">
-            <strong>Batting order — drag ≡ to reorder</strong>
-            <button className="small" onClick={() => setShowLineup(false)}>Close</button>
+        <div className="modal-overlay" onClick={() => setShowLineup(false)}>
+          <div className="card stack" onClick={(e) => e.stopPropagation()}>
+            <div className="row spread">
+              <strong>Batting order — drag ≡ to reorder</strong>
+              <button className="small" onClick={() => setShowLineup(false)}>Close</button>
+            </div>
+            <p className="muted" style={{ margin: 0 }}>
+              ✕ benches a batter for today (unchecks them on the roster too).
+              Add a Ghost Batter (Auto Out) slot for a vacancy with no sub — it auto-logs a scoreless
+              out and skips ahead when the order reaches it. Add a benched or
+              newly-added batter directly into today's order below.
+            </p>
+            <LineupEditor
+              order={order}
+              batters={roster}
+              onChange={(o) => db.games.update(gameId, { lineup: o, updatedAt: now(), ...pendingSync() })}
+              onRemoveBatter={(batterId) => db.batters.update(batterId, { activeToday: false, updatedAt: now(), ...pendingSync() })}
+              allowGhostAdd={order.length > 0 && order.length <= 8 && !order.includes(GHOST_OUT)}
+              addableBatters={roster.filter((b) => !order.includes(b.id))}
+              onAddBatter={(batterId) => {
+                // Lineup write is owned by LineupEditor's onChange (see
+                // applyChange there) — this only flips the roster-level
+                // activeToday flag so the roster/checkbox screens stay in sync.
+                db.batters.update(batterId, { activeToday: true, updatedAt: now(), ...pendingSync() })
+              }}
+            />
           </div>
-          <p className="muted" style={{ margin: 0 }}>
-            ✕ benches a batter for today (unchecks them on the roster too).
-            Add a Ghost Batter (Auto Out) slot for a vacancy with no sub — it auto-logs a scoreless
-            out and skips ahead when the order reaches it. Add a benched or
-            newly-added batter directly into today's order below.
-          </p>
-          <LineupEditor
-            order={order}
-            batters={roster}
-            onChange={(o) => db.games.update(gameId, { lineup: o, updatedAt: now(), ...pendingSync() })}
-            onRemoveBatter={(batterId) => db.batters.update(batterId, { activeToday: false, updatedAt: now(), ...pendingSync() })}
-            allowGhostAdd={order.length > 0 && order.length <= 8 && !order.includes(GHOST_OUT)}
-            addableBatters={roster.filter((b) => !order.includes(b.id))}
-            onAddBatter={(batterId) => {
-              // Lineup write is owned by LineupEditor's onChange (see
-              // applyChange there) — this only flips the roster-level
-              // activeToday flag so the roster/checkbox screens stay in sync.
-              db.batters.update(batterId, { activeToday: true, updatedAt: now(), ...pendingSync() })
-            }}
-          />
         </div>
       )}
 
