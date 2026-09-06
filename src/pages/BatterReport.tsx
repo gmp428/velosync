@@ -96,7 +96,7 @@ export default function BatterReport() {
           </div>
 
           <h2>Zone heat map</h2>
-          <p className="muted">Blue = our pitch won (strikes, fouls, outs), vermillion (orange-red) = they hit it. Number = pitches there.</p>
+          <p className="muted">Red = our pitch won (strikes, fouls, outs), blue = they hit it. Number = pitches there.</p>
           <ZoneGrid heat={heat} granular={settings.capture.granularZones} />
 
           <h2>By pitch type</h2>

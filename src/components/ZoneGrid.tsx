@@ -7,9 +7,9 @@ import { battleRate, groupingColor } from '../lib/stats'
 // by four out-of-zone strips (high / low / left / right).
 //
 // Tap to choose where a pitch went (when onSelect is given), and/or color the
-// regions by how the battle went there (when heat is given) — colorblind-safe
-// blue-to-vermillion scale: blue = our pitch won (strikes, fouls, outs),
-// vermillion = they hit it. Both can be active at once: during a game the
+// regions by how the battle went there (when heat is given) — red-to-blue
+// 5-color scale: red = our pitch won (strikes, fouls, outs), blue = they
+// hit it. Both can be active at once: during a game the
 // grid is a heat map AND the location picker.
 //
 // Two layouts, switched by `granular`:
@@ -67,18 +67,18 @@ const CELLS_GRANULAR: Array<{ zone: Zone; style: React.CSSProperties; label?: st
   { zone: 'og-down-right-corner', style: { gridColumn: '5', gridRow: '5' }, label: '↘' },
 ]
 
-// Colorblind-safe diverging scale (Okabe-Ito palette), used for BOTH heat
-// maps below. Deliberately avoids a green<->red axis — that's exactly the
-// pair confused by red-green colorblindness (the most common form). Blue
-// (good) to vermillion/orange (bad) instead, quantized into 5 distinct
-// bands rather than a smooth blend so adjacent values read as clearly
-// different colors, not a subtle gradient shift.
+// Fixed 5-color scale (G's exact spec, not colorblind-safe by explicit
+// choice — see session history/memory): red (best/highest win rate) ->
+// orange -> yellow -> green -> blue (worst/lowest win rate). Same 5 solid
+// bands as the command grouping map (stats.ts GROUPING_BANDS) so the whole
+// app uses one consistent palette. Deliberately overrides the colorblind-
+// safe default G originally asked for — do not revert without being asked.
 const HEAT_BANDS: Array<{ min: number; bg: string; fg: string }> = [
-  { min: 0.8, bg: '#0072B2', fg: '#ffffff' }, // strong blue — best
-  { min: 0.6, bg: '#56B4E9', fg: '#0d1526' }, // sky blue
-  { min: 0.4, bg: '#F0E442', fg: '#0d1526' }, // yellow — neutral middle
-  { min: 0.2, bg: '#E69F00', fg: '#0d1526' }, // orange
-  { min: -1, bg: '#D55E00', fg: '#ffffff' },  // vermillion — worst
+  { min: 0.8, bg: '#ED2E14', fg: '#ffffff' }, // red — best
+  { min: 0.6, bg: '#EE8102', fg: '#0d1526' }, // orange
+  { min: 0.4, bg: '#F4D908', fg: '#0d1526' }, // yellow
+  { min: 0.2, bg: '#74F94A', fg: '#0d1526' }, // green
+  { min: -1, bg: '#1200F0', fg: '#ffffff' },  // blue — worst
 ]
 
 function heatColor(rate: number): { bg: string; fg: string } {

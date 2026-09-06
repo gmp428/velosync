@@ -910,7 +910,7 @@ export default function LiveGame() {
           </div>
           {heat && (
             <p className="muted" style={{ textAlign: 'center', margin: '0 0 8px' }}>
-              Blue = our pitch won · vermillion = they hit it · number = pitches there
+              Red = our pitch won · blue = they hit it · number = pitches there
             </p>
           )}
           </>
