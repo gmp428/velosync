@@ -159,7 +159,7 @@ export default function LiveGame() {
   const [selZone, setSelZone] = useState<Zone | null>(null)
   const [showInPlay, setShowInPlay] = useState(false)
   // Which history pool the in-game stats draw from
-  const [scope, setScope] = useState<'all' | 'pitcher'>('all')
+  const [scope, setScope] = useState<'all' | 'pitcher'>('pitcher')
   // Showing the "wrong batter — switch to…" picker
   const [changingBatter, setChangingBatter] = useState(false)
   // Showing the substitute-player picker (real roster change, tracked in history).
@@ -194,7 +194,7 @@ export default function LiveGame() {
 
   // Fresh batter: reset the stat scope and close the switch-batter picker
   useEffect(() => {
-    setScope('all')
+    setScope('pitcher')
     setChangingBatter(false)
   }, [openAtBat?.batterId])
 
