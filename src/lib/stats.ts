@@ -404,6 +404,32 @@ export function groupingColor(avgDistance: number): { bg: string; fg: string } {
   return GROUPING_BANDS[GROUPING_BANDS.length - 1]
 }
 
+// Same 5-color scale as GROUPING_BANDS/ZoneGrid's heatColor, but smoothly
+// BLENDED (linear RGB interpolation) rather than quantized into solid
+// bands — used for the pitch-selection win-rate fill bar, where G wants a
+// continuous gradient reflecting the exact percentage rather than a
+// discrete band. rate: 0 (worst) to 1 (best) win rate.
+const RATE_COLOR_STOPS = ['#1200F0', '#74F94A', '#F4D908', '#EE8102', '#ED2E14'] // worst -> best
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+export function blendedRateColor(rate: number): string {
+  const clamped = Math.max(0, Math.min(1, rate))
+  const segments = RATE_COLOR_STOPS.length - 1
+  const scaled = clamped * segments
+  const i = Math.min(Math.floor(scaled), segments - 1)
+  const t = scaled - i
+  const [r1, g1, b1] = hexToRgb(RATE_COLOR_STOPS[i])
+  const [r2, g2, b2] = hexToRgb(RATE_COLOR_STOPS[i + 1])
+  const r = Math.round(r1 + (r2 - r1) * t)
+  const g = Math.round(g1 + (g2 - g1) * t)
+  const b = Math.round(b1 + (b2 - b1) * t)
+  return `rgb(${r}, ${g}, ${b})`
+}
+
 
 export function byCount(pitches: Pitch[]): Array<{ key: string; pitches: Pitch[] }> {
   const m = new Map<string, Pitch[]>()

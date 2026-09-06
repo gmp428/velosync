@@ -278,7 +278,6 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 .winbar > span {
   display: block;
   height: 100%;
-  background: var(--good);
   border-radius: 3px;
 }
 .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

@@ -8,7 +8,7 @@ import {
 import ZoneGrid from '../components/ZoneGrid'
 import SuggestionPanel from '../components/SuggestionPanel'
 import LineupEditor from '../components/LineupEditor'
-import { battleAgg, battleRate, byZoneBattle, outcomeBreakdown, pct } from '../lib/stats'
+import { battleAgg, battleRate, blendedRateColor, byZoneBattle, outcomeBreakdown, pct } from '../lib/stats'
 
 type Half = 'top' | 'bottom'
 
@@ -830,7 +830,7 @@ export default function LiveGame() {
                       </span>
                       {rate !== null && (
                         <span className="winbar" aria-hidden="true">
-                          <span style={{ width: `${Math.round(rate * 100)}%` }} />
+                          <span style={{ width: `${Math.round(rate * 100)}%`, background: blendedRateColor(rate) }} />
                         </span>
                       )}
                       {top3.length > 0 && (
