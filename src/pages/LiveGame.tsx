@@ -722,7 +722,7 @@ export default function LiveGame() {
               )}
             </div>
             <div className="row" style={{ marginTop: 8 }}>
-              {history.length > 0 && (
+              {history.length > 0 ? (
                 <>
                   <button
                     className={`chip small-chip ${scope === 'all' ? 'on' : ''}`}
@@ -738,6 +738,8 @@ export default function LiveGame() {
                     vs {compactDisplayName(currentPitcher)} ({vsPitcherCount})
                   </button>
                 </>
+              ) : (
+                <span className="chip small-chip" style={{ opacity: 0.6, cursor: 'default' }}>No history yet</span>
               )}
             </div>
           </div>
