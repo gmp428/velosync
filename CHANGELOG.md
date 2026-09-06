@@ -4,6 +4,46 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-09-06
+
+### Added
+- Live-game header consolidated: "End game" and "vs {Team}" moved into the
+  shared app header (top, alongside the VeloSync logo), freeing up vertical
+  space on the live-game screen for a taller zone grid.
+- Batting order / Wrong batter? / Substitute / Change pitcher are now
+  reachable from a single game-menu (gear icon) in the batter card, and all
+  four open as a modal overlay (dark backdrop, consistent top position,
+  own Close button) instead of rendering inline on the page.
+- Quick Add by jersey number (Roster page) also converted to the same
+  modal-overlay pattern.
+- Undo now asks for confirmation ("Undo last pitch?") before removing the
+  most recent pitch, with a Redo option (grayed out until an undo has
+  actually happened) to restore it if the undo itself was a mistake.
+  Redo covers only the single most recent undo.
+- Pitch count ("P: N") is now tracked per-pitcher instead of game-wide —
+  switching pitchers starts a fresh count, and switching back to a prior
+  pitcher resumes their own accumulated total.
+- Long batter/pitcher last names (e.g. "Reyes-Hernandez") compress to
+  initials in tight UI spots (scope chip, batter card subtitle) instead of
+  overflowing.
+- Intended-target zone (when Intended location capture is on) is now
+  highlighted yellow on the following actual-landing-zone screen, as a
+  visual reminder of where you were aiming.
+
+### Changed
+- Heat-map coloring during intended-location capture now lives on
+  whichever zone step is currently active (intended-target OR actual
+  landing, never both at once) instead of showing on both grids.
+- Zone grid's strike-zone border and internal dividing lines are now fully
+  opaque, rendering as one clean line instead of overlapping/shaded with
+  the heat-map color underneath.
+- Batter card gracefully shows a "No history yet" placeholder instead of
+  an abrupt layout collapse when a fresh batter has no logged pitches yet.
+
+### Fixed
+- Fixed an infinite re-render loop that made the VeloSync logo (and general
+  page responsiveness) unresponsive during a live game.
+
 ## [0.12.0] — 2026-09-05
 
 ### Added
