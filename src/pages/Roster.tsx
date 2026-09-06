@@ -338,20 +338,25 @@ export default function Roster() {
       </form>
 
       {showQuickAdd && editingId === null && (
-        <div className="card stack" style={{ marginTop: 8 }}>
-          <strong>Quick add by jersey number</strong>
-          <p className="muted" style={{ margin: 0 }}>
-            No time for names before first pitch? Tap in the numbers straight
-            off their lineup card, in order — e.g. "3, 7, 12, 21, 5". Creates
-            unnamed "Batter #N" placeholders, checked into today's lineup in
-            that exact order. Add real names later from the roster list
-            below whenever there's time.
-          </p>
-          <NumberPadInput value={quickNumbers} onChange={setQuickNumbers} />
-          <div className="row">
-            <button type="button" className="primary grow" onClick={quickAddByNumbers} disabled={!quickNumbers.trim()}>
-              Add lineup
-            </button>
+        <div className="modal-overlay" onClick={() => setShowQuickAdd(false)}>
+          <div className="card stack" onClick={(e) => e.stopPropagation()}>
+            <div className="row spread">
+              <strong>Quick add by jersey number</strong>
+              <button type="button" className="small" onClick={() => setShowQuickAdd(false)}>Close</button>
+            </div>
+            <p className="muted" style={{ margin: 0 }}>
+              No time for names before first pitch? Tap in the numbers straight
+              off their lineup card, in order — e.g. "3, 7, 12, 21, 5". Creates
+              unnamed "Batter #N" placeholders, checked into today's lineup in
+              that exact order. Add real names later from the roster list
+              below whenever there's time.
+            </p>
+            <NumberPadInput value={quickNumbers} onChange={setQuickNumbers} />
+            <div className="row">
+              <button type="button" className="primary grow" onClick={quickAddByNumbers} disabled={!quickNumbers.trim()}>
+                Add lineup
+              </button>
+            </div>
           </div>
         </div>
       )}

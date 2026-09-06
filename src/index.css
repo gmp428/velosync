@@ -40,8 +40,8 @@ a { color: var(--accent); text-decoration: none; }
 
 .topbar {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 2px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
   margin-bottom: 10px;
@@ -49,6 +49,18 @@ a { color: var(--accent); text-decoration: none; }
   top: 0;
   background: var(--bg);
   z-index: 10;
+}
+.topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.topbar-subheader {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding-left: 2px;
 }
 .topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .topbar .brand img { height: 40px; width: auto; display: block; }
@@ -114,6 +126,18 @@ button.danger { border-color: #e0a3a3; color: var(--bad); }
 
 .warning { color: #a66b00; font-size: 0.9rem; }
 button.small { min-height: 34px; padding: 6px 10px; font-size: 0.85rem; border-radius: 8px; }
+button.small.icon-btn { width: 34px; min-width: 34px; padding: 6px; display: inline-flex; align-items: center; justify-content: center; }
+button.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  min-height: 0;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
 button:disabled { opacity: 0.45; cursor: default; }
 
 .card {
@@ -170,14 +194,14 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 .zone-grid {
   display: grid;
   grid-template-columns: 44px 1fr 1fr 1fr 44px;
-  grid-template-rows: 44px 56px 56px 56px 44px;
+  grid-template-rows: 48px 88px 88px 88px 48px;
   gap: 0;
   max-width: 360px;
   margin: 8px auto;
 }
 .zone-grid-compact {
   grid-template-columns: 26px 1fr 1fr 1fr 26px;
-  grid-template-rows: 26px 40px 40px 40px 26px;
+  grid-template-rows: 30px 62px 62px 62px 30px;
   max-width: 280px;
 }
 .zone-grid-granular .zone-cell { font-size: 0.75rem; }
@@ -188,10 +212,28 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   font-size: 0.9rem;
   color: var(--text);
 }
-.zone-in { background: var(--panel-2); border: 1px solid var(--border); }
+.zone-in { background: var(--panel-2); }
 .zone-out { background: #eef2f8; border: 1px dashed var(--border); color: var(--muted); }
 .zone-selected { outline: 3px solid var(--accent); outline-offset: -1px; font-weight: 700; }
 .zone-cell:disabled { opacity: 1; }
+
+.game-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel, #fff);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 4px 14px rgba(13, 21, 38, 0.18);
+  min-width: 150px;
+}
+.game-menu-dropdown button { width: 100%; text-align: left; }
 
 /* Strike-zone outline + internal dividing lines, overlaid on top of the 3x3
    in-zone cells regardless of their fill color/number — subtle (not pure
@@ -204,13 +246,13 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   grid-column: 2 / 5;
   grid-row: 2 / 5;
   pointer-events: none;
-  border: 4px solid rgba(13, 21, 38, 0.55);
+  border: 4px solid #0d1526;
   border-radius: 0;
   background-image:
-    linear-gradient(to right, transparent calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% + 2px), transparent calc(33.333% + 2px)),
-    linear-gradient(to right, transparent calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% + 2px), transparent calc(66.666% + 2px)),
-    linear-gradient(to bottom, transparent calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% - 2px), rgba(13, 21, 38, 0.4) calc(33.333% + 2px), transparent calc(33.333% + 2px)),
-    linear-gradient(to bottom, transparent calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% - 2px), rgba(13, 21, 38, 0.4) calc(66.666% + 2px), transparent calc(66.666% + 2px));
+    linear-gradient(to right, transparent calc(33.333% - 2px), #0d1526 calc(33.333% - 2px), #0d1526 calc(33.333% + 2px), transparent calc(33.333% + 2px)),
+    linear-gradient(to right, transparent calc(66.666% - 2px), #0d1526 calc(66.666% - 2px), #0d1526 calc(66.666% + 2px), transparent calc(66.666% + 2px)),
+    linear-gradient(to bottom, transparent calc(33.333% - 2px), #0d1526 calc(33.333% - 2px), #0d1526 calc(33.333% + 2px), transparent calc(33.333% + 2px)),
+    linear-gradient(to bottom, transparent calc(66.666% - 2px), #0d1526 calc(66.666% - 2px), #0d1526 calc(66.666% + 2px), transparent calc(66.666% + 2px));
 }
 
 /* Live game */
@@ -338,6 +380,23 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   padding: 28px 40px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
 }
 .ghost-flash-title { font-size: 1.4rem; font-weight: 700; font-style: italic; }
+
+/* Modal overlay for in-game panels (Wrong batter?, Substitute, Change
+   pitcher) that need to pop on top of the screen with their own close
+   button attached, instead of rendering inline lower on the page where a
+   stray control higher up (e.g. Undo) could be mistaken for "cancel". */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; align-items: flex-start; justify-content: center;
+  background: rgba(15, 23, 42, 0.55);
+  padding: 12px 12px env(safe-area-inset-bottom, 12px);
+  overflow-y: auto;
+}
+.modal-overlay.modal-overlay-bottom { padding-top: 15%; }
+.modal-overlay .card {
+  width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto;
+  margin-bottom: 12px;
+}
 .ghost-flash-sub { margin-top: 6px; color: var(--muted); font-size: 1rem; }
 @keyframes ghost-flash-fade {
   0% { opacity: 0; }
