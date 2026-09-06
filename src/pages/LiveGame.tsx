@@ -893,7 +893,7 @@ export default function LiveGame() {
           )}
 
           {showUndoConfirm && (
-            <div className="modal-overlay" onClick={() => setShowUndoConfirm(false)}>
+            <div className="modal-overlay modal-overlay-bottom" onClick={() => setShowUndoConfirm(false)}>
               <div className="card stack" onClick={(e) => e.stopPropagation()}>
                 <strong>Undo last pitch?</strong>
                 <p className="muted" style={{ margin: 0 }}>This removes the most recent pitch logged.</p>
