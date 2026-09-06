@@ -686,7 +686,7 @@ export default function LiveGame() {
               <button className="small icon-btn" onClick={undo} disabled={!gamePitchCount && !openAtBat} title="Undo" aria-label="Undo">↩</button>
               <button className="small icon-btn" onClick={() => setShowGameMenu((v) => !v)} title="Game menu" aria-label="Game menu">⚙</button>
               {showGameMenu && (
-                <div className="game-menu-dropdown" style={{ top: 'auto', bottom: '100%', marginTop: 0, marginBottom: 4 }}>
+                <div className="game-menu-dropdown">
                   <button className="small" onClick={() => { setShowLineup((v) => !v); setShowGameMenu(false) }}>
                     ☰ Batting order
                   </button>
