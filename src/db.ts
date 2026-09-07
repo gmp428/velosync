@@ -83,6 +83,16 @@ export interface Batter {
   // Undefined only appears on rows from before this field existed; the v5
   // migration backfills it, so app code should treat it as always defined.
   activeToday?: boolean
+  // Shared UUID across Batter records (on different opponents' rosters)
+  // believed to be the same real player -- e.g. a travel-ball kid who plays
+  // on multiple teams across tournaments. undefined = not linked (the
+  // default, normal case). Linking is a lightweight tag, NOT a data merge:
+  // pitches/at-bats stay permanently owned by whichever Batter record they
+  // were logged against; reports combine data live by querying every
+  // Batter sharing this ID. This makes unlinking lossless by construction
+  // -- clearing the field just reverts a record to standalone, nothing was
+  // ever actually moved.
+  linkGroupId?: string
   updatedAt: number
   syncStatus: SyncStatus
   syncedAt?: number | null
@@ -152,6 +162,83 @@ export function pitcherArsenal(pitcher: Pitcher | undefined, allTypes: PitchType
   const allowed = new Set(pitcher.pitchTypeIds)
   const arsenal = allTypes.filter((t) => allowed.has(t.id))
   return arsenal.length > 0 ? arsenal : allTypes
+}
+
+// Cross-team player identity: find OTHER opponents' batters that look like
+// they might be the same real kid as `batter`, to suggest as a link.
+// Never auto-links -- purely a suggestion list for the coach to confirm.
+//
+// Matching signal, strongest first (see locked design in session history):
+// - full name match (first + last, case/whitespace-insensitive) -- the
+//   strong signal, works regardless of jersey number since travel-ball
+//   kids often wear different numbers on different teams
+// - same jersey number AND same last name -- a medium signal, guards
+//   against the common "reused jersey number, unrelated kid" false
+//   positive that number-alone matching would produce
+// A jersey number match with no name, or a different last name, is NOT
+// surfaced automatically -- too noisy (numbers get reused constantly
+// across unrelated teams). That case is manual-link-only.
+//
+// Deliberately excludes batters already in the SAME link group as
+// `batter` (already linked, nothing to suggest) and batters on the SAME
+// opponent (this feature is about cross-TEAM identity, not intra-roster
+// duplicates).
+export interface LinkSuggestion {
+  batter: Batter
+  opponentName: string
+  reason: 'name' | 'number+lastname'
+}
+
+function normalizeNamePart(s: string | undefined): string {
+  return (s ?? '').trim().toLowerCase()
+}
+
+export function findLinkSuggestions(
+  batter: Batter,
+  allBatters: Batter[],
+  opponentsById: Map<string, { id: string; name: string }>,
+): LinkSuggestion[] {
+  const firstName = normalizeNamePart(batter.firstName)
+  const lastName = normalizeNamePart(batter.lastName)
+  if (!firstName && !lastName) return [] // nothing to match on yet (quick-add placeholder)
+
+  const alreadyLinked = new Set(
+    batter.linkGroupId
+      ? allBatters.filter((b) => b.linkGroupId === batter.linkGroupId).map((b) => b.id)
+      : [batter.id],
+  )
+
+  const results: LinkSuggestion[] = []
+  for (const other of allBatters) {
+    if (other.opponentId === batter.opponentId) continue // same roster, not cross-team
+    if (alreadyLinked.has(other.id)) continue
+    const otherFirst = normalizeNamePart(other.firstName)
+    const otherLast = normalizeNamePart(other.lastName)
+    if (!otherFirst && !otherLast) continue
+
+    let reason: LinkSuggestion['reason'] | null = null
+    if (firstName && lastName && firstName === otherFirst && lastName === otherLast) {
+      reason = 'name'
+    } else if (
+      batter.number && other.number && batter.number === other.number &&
+      lastName && lastName === otherLast
+    ) {
+      reason = 'number+lastname'
+    }
+    if (reason) {
+      const opp = opponentsById.get(other.opponentId)
+      results.push({ batter: other, opponentName: opp?.name ?? 'Unknown team', reason })
+    }
+  }
+  return results
+}
+
+// All batters currently sharing a link group with `batter` (including
+// itself). Returns just [batter] if unlinked -- callers can use this
+// uniformly whether or not the batter is actually linked.
+export function linkedBatterIds(batter: Batter, allBatters: Batter[]): string[] {
+  if (!batter.linkGroupId) return [batter.id]
+  return allBatters.filter((b) => b.linkGroupId === batter.linkGroupId).map((b) => b.id)
 }
 
 export interface PitchType {
@@ -460,6 +547,12 @@ db.version(6).stores({
     if (row.activeToday == null) row.activeToday = true
   })
 })
+
+db.version(7).stores({
+  batters: 'id, opponentId, updatedAt, syncStatus, sortIndex, linkGroupId',
+})
+// No data migration needed -- linkGroupId is optional and undefined on
+// every existing row, which is exactly the correct "not linked" state.
 
 // Discard the legacy integer-keyed database from before the UUID switch.
 Dexie.delete('pitch-tracker').catch(() => {})

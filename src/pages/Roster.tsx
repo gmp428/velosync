@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, GHOST_OUT, newId, now, pendingSync } from '../db'
+import { db, displayName, findLinkSuggestions, GHOST_OUT, newId, now, pendingSync, type Batter, type LinkSuggestion } from '../db'
 import LineupEditor from '../components/LineupEditor'
 import NumberPadInput from '../components/NumberPadInput'
 
@@ -49,6 +49,13 @@ export default function Roster() {
       })
     : batters
 
+  // For each batter, the OTHER members of its link group (across every
+  // opponent), if any — used to render a "linked to X on Team Y" hint.
+  const linkedTeammatesFor = (b: Batter): Batter[] => {
+    if (!b.linkGroupId || !allBattersEverywhere) return []
+    return allBattersEverywhere.filter((other) => other.linkGroupId === b.linkGroupId && other.id !== b.id)
+  }
+
   const [editingId, setEditingId] = useState<string | null>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -63,6 +70,19 @@ export default function Roster() {
   const [quickNumbers, setQuickNumbers] = useState('')
   const [showQuickAdd, setShowQuickAdd] = useState(false)
 
+  // Cross-team player identity: batters/opponents from EVERY team (not just
+  // this one), needed to check for likely matches when a name is saved.
+  const allBattersEverywhere = useLiveQuery(() => db.batters.toArray(), [])
+  const allOpponents = useLiveQuery(() => db.opponents.toArray(), [])
+  const opponentsById = new Map((allOpponents ?? []).map((o) => [o.id, o]))
+
+  // Suggestion modal: shown right after saving a batter whose name just
+  // changed, if likely cross-team matches were found. null = not showing.
+  const [suggestFor, setSuggestFor] = useState<{ batter: Batter; matches: LinkSuggestion[] } | null>(null)
+  // Manage-links modal for an existing batter (shows current links, lets
+  // you search/add a manual link, or unlink via the 3+ group checklist).
+  const [manageLinksFor, setManageLinksFor] = useState<Batter | null>(null)
+
   const resetForm = () => {
     setEditingId(null)
     setFirstName('')
@@ -74,17 +94,20 @@ export default function Roster() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
     const first = firstName.trim()
+    const last = lastName.trim()
     const num = number.trim()
     // Require SOMETHING to identify the batter by — either a name or a
     // jersey number (a number-only entry displays as "Batter #N" via
     // displayName's fallback until a real name is added later).
     if (!first && !num) return
     const fields = {
-      firstName: first || undefined, lastName: lastName.trim() || undefined,
+      firstName: first || undefined, lastName: last || undefined,
       number: num, bats, updatedAt: now(), ...pendingSync(),
     }
+    let savedId: string
     if (editingId !== null) {
       await db.batters.update(editingId, fields)
+      savedId = editingId
     } else {
       // Append to the end of the current batting order (next free sortIndex),
       // never left undefined or colliding with an existing batter's slot.
@@ -94,9 +117,22 @@ export default function Roster() {
       // New batters always join today's active lineup automatically —
       // there's no upper cap; the coach unchecks anyone they want to bench.
       const activeToday = true
-      await db.batters.add({ id: newId(), opponentId, sortIndex: nextSortIndex, activeToday, ...fields })
+      savedId = newId()
+      await db.batters.add({ id: savedId, opponentId, sortIndex: nextSortIndex, activeToday, ...fields })
     }
     resetForm()
+
+    // Cross-team player identity: whenever a real name was just saved (not
+    // just a jersey number), check for likely matches on OTHER opponents'
+    // rosters and surface them as a suggestion. Never fires for a bare
+    // quick-add placeholder (no name yet) — nothing to match on.
+    if (first && allBattersEverywhere) {
+      const saved = await db.batters.get(savedId)
+      if (saved) {
+        const matches = findLinkSuggestions(saved, allBattersEverywhere, opponentsById)
+        if (matches.length > 0) setSuggestFor({ batter: saved, matches })
+      }
+    }
   }
 
   // Quick-add a whole opposing lineup by jersey number only, in the exact
@@ -196,6 +232,26 @@ export default function Roster() {
     if (confirm('Delete this batter?')) await db.batters.delete(batterId)
   }
 
+  // Confirm a suggested (or manually chosen) link between two batter
+  // records. If either already has a linkGroupId, reuse it (folding into
+  // an existing group) rather than always minting a new one — otherwise
+  // linking a 3rd record to an already-linked pair would incorrectly
+  // split off a separate 2-person group instead of joining all three.
+  const confirmLink = async (a: Batter, b: Batter) => {
+    const groupId = a.linkGroupId ?? b.linkGroupId ?? newId()
+    await db.transaction('rw', db.batters, async () => {
+      await db.batters.update(a.id, { linkGroupId: groupId, updatedAt: now(), ...pendingSync() })
+      await db.batters.update(b.id, { linkGroupId: groupId, updatedAt: now(), ...pendingSync() })
+    })
+  }
+
+  // Unlink is lossless by construction — nothing was ever moved, only a
+  // shared tag is cleared. Reverts this one record to standalone; every
+  // other member of the group is completely unaffected.
+  const unlinkBatter = async (batterId: string) => {
+    await db.batters.update(batterId, { linkGroupId: undefined, updatedAt: now(), ...pendingSync() })
+  }
+
   const removeTeam = async () => {
     const gameCount = await db.games.where('opponentId').equals(opponentId).count()
     if (gameCount > 0) {
@@ -256,6 +312,7 @@ export default function Roster() {
       <div className="list">
         {rosterList.map((b) => {
           const isActive = b.activeToday !== false
+          const teammates = linkedTeammatesFor(b)
           return (
             <div key={b.id}>
               <div className="list-item">
@@ -266,9 +323,17 @@ export default function Roster() {
                   onChange={(e) => setActive(b.id, e.target.checked)}
                   style={{ width: 20, height: 20, flexShrink: 0 }}
                 />
-                <Link to={`/batter/${b.id}`} className="grow" style={{ color: 'var(--text)' }}>
-                  {b.number ? `#${b.number} ` : ''}{displayName(b)} <span className="pill">bats {b.bats}</span>
-                </Link>
+                <div className="grow">
+                  <Link to={`/batter/${b.id}`} style={{ color: 'var(--text)' }}>
+                    {b.number ? `#${b.number} ` : ''}{displayName(b)} <span className="pill">bats {b.bats}</span>
+                  </Link>
+                  {teammates.length > 0 && (
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>
+                      🔗 linked to {teammates.map((t) => opponentsById.get(t.opponentId)?.name ?? '?').join(', ')}
+                    </div>
+                  )}
+                </div>
+                <button className="small" onClick={() => setManageLinksFor(b)} title="Manage cross-team links">🔗</button>
                 <button className="small" onClick={() => (editingId === b.id ? resetForm() : startEdit(b.id))}>
                   {editingId === b.id ? 'Close' : 'Edit'}
                 </button>
@@ -360,6 +425,110 @@ export default function Roster() {
           </div>
         </div>
       )}
+
+      {suggestFor && (
+        <div className="modal-overlay" onClick={() => setSuggestFor(null)}>
+          <div className="card stack" onClick={(e) => e.stopPropagation()}>
+            <strong>Same player on another team?</strong>
+            <p className="muted" style={{ margin: 0 }}>
+              {displayName(suggestFor.batter)} looks like it might be the same player as:
+            </p>
+            <div className="list">
+              {suggestFor.matches.map((m) => (
+                <div key={m.batter.id} className="list-item" style={{ width: '100%' }}>
+                  <div className="grow">
+                    <div>{m.batter.number ? `#${m.batter.number} ` : ''}{displayName(m.batter)}</div>
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>
+                      {m.opponentName} · {m.reason === 'name' ? 'same name' : 'same number + last name'}
+                    </div>
+                  </div>
+                  <button
+                    className="small primary"
+                    onClick={async () => {
+                      await confirmLink(suggestFor.batter, m.batter)
+                      setSuggestFor(null)
+                    }}
+                  >
+                    Yes, link
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button className="small" onClick={() => setSuggestFor(null)}>Not the same player</button>
+          </div>
+        </div>
+      )}
+
+      {manageLinksFor && (() => {
+        const current = manageLinksFor
+        const teammates = linkedTeammatesFor(current)
+        const group = [current, ...teammates]
+        // Manual search: any batter on a DIFFERENT opponent, not already
+        // in this group — lets a coach link a match the automatic
+        // suggestion missed (different number AND no name typed yet on
+        // the other roster, unusual spelling, etc).
+        const candidates = (allBattersEverywhere ?? []).filter(
+          (b) => b.opponentId !== current.opponentId && !group.some((g) => g.id === b.id),
+        )
+        return (
+          <div className="modal-overlay" onClick={() => setManageLinksFor(null)}>
+            <div className="card stack" onClick={(e) => e.stopPropagation()}>
+              <div className="row spread">
+                <strong>Cross-team links — {displayName(current)}</strong>
+                <button className="small" onClick={() => setManageLinksFor(null)}>Close</button>
+              </div>
+
+              {teammates.length > 0 ? (
+                <>
+                  <p className="muted" style={{ margin: 0 }}>
+                    Currently linked to {teammates.length} record{teammates.length > 1 ? 's' : ''}. Untick anyone who is NOT actually the same player:
+                  </p>
+                  <div className="list">
+                    {group.map((g) => (
+                      <label key={g.id} className="list-item" style={{ width: '100%' }}>
+                        <input
+                          type="checkbox"
+                          checked
+                          onChange={() => unlinkBatter(g.id)}
+                          style={{ width: 20, height: 20, flexShrink: 0 }}
+                        />
+                        <span className="grow">
+                          {g.number ? `#${g.number} ` : ''}{displayName(g)} — {opponentsById.get(g.opponentId)?.name ?? '?'}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="muted" style={{ margin: 0 }}>Not currently linked to anyone.</p>
+              )}
+
+              <strong style={{ marginTop: 8 }}>Link to another team's player</strong>
+              {candidates.length === 0 ? (
+                <p className="empty">No other teams have batters yet.</p>
+              ) : (
+                <div className="list">
+                  {candidates.map((c) => (
+                    <button
+                      key={c.id}
+                      className="list-item"
+                      style={{ width: '100%' }}
+                      onClick={async () => {
+                        await confirmLink(current, c)
+                        setManageLinksFor(null)
+                      }}
+                    >
+                      <span>{c.number ? `#${c.number} ` : ''}{displayName(c)}</span>
+                      <span className="pill">{opponentsById.get(c.opponentId)?.name ?? '?'}</span>
+                      <span className="chev">›</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       <button className="danger" onClick={removeTeam} style={{ marginTop: 20 }}>Delete team</button>
     </main>
