@@ -82,6 +82,13 @@ export default function Roster() {
   // Manage-links modal for an existing batter (shows current links, lets
   // you search/add a manual link, or unlink via the 3+ group checklist).
   const [manageLinksFor, setManageLinksFor] = useState<Batter | null>(null)
+  // Manual-link team drill-down: null = showing team list, otherwise the
+  // opponentId whose players are currently shown.
+  const [manualLinkTeamId, setManualLinkTeamId] = useState<string | null>(null)
+  // Name-sync step: shown after picking a target player (auto-suggestion
+  // OR manual pick), before the link is actually written. Holds both
+  // candidate batters so the coach can choose whose name wins.
+  const [pendingLink, setPendingLink] = useState<{ a: Batter; b: Batter } | null>(null)
 
   const resetForm = () => {
     setEditingId(null)
@@ -237,11 +244,15 @@ export default function Roster() {
   // an existing group) rather than always minting a new one — otherwise
   // linking a 3rd record to an already-linked pair would incorrectly
   // split off a separate 2-person group instead of joining all three.
-  const confirmLink = async (a: Batter, b: Batter) => {
+  // `syncedName`, if provided, is written to BOTH records (first/last) —
+  // number and bats always stay independent per-team, only the name
+  // itself is ever synced, and only when the coach explicitly chooses to.
+  const confirmLink = async (a: Batter, b: Batter, syncedName?: { firstName?: string; lastName?: string }) => {
     const groupId = a.linkGroupId ?? b.linkGroupId ?? newId()
     await db.transaction('rw', db.batters, async () => {
-      await db.batters.update(a.id, { linkGroupId: groupId, updatedAt: now(), ...pendingSync() })
-      await db.batters.update(b.id, { linkGroupId: groupId, updatedAt: now(), ...pendingSync() })
+      const nameFields = syncedName ? { firstName: syncedName.firstName, lastName: syncedName.lastName, name: undefined } : {}
+      await db.batters.update(a.id, { linkGroupId: groupId, ...nameFields, updatedAt: now(), ...pendingSync() })
+      await db.batters.update(b.id, { linkGroupId: groupId, ...nameFields, updatedAt: now(), ...pendingSync() })
     })
   }
 
@@ -444,9 +455,9 @@ export default function Roster() {
                   </div>
                   <button
                     className="small primary"
-                    onClick={async () => {
-                      await confirmLink(suggestFor.batter, m.batter)
+                    onClick={() => {
                       setSuggestFor(null)
+                      setPendingLink({ a: suggestFor.batter, b: m.batter })
                     }}
                   >
                     Yes, link
@@ -463,19 +474,31 @@ export default function Roster() {
         const current = manageLinksFor
         const teammates = linkedTeammatesFor(current)
         const group = [current, ...teammates]
-        // Manual search: any batter on a DIFFERENT opponent, not already
-        // in this group — lets a coach link a match the automatic
-        // suggestion missed (different number AND no name typed yet on
-        // the other roster, unusual spelling, etc).
-        const candidates = (allBattersEverywhere ?? []).filter(
-          (b) => b.opponentId !== current.opponentId && !group.some((g) => g.id === b.id),
+        // Team list for the drill-down: every OTHER opponent that has at
+        // least one batter not already in this group.
+        const groupIds = new Set(group.map((g) => g.id))
+        const eligibleOtherTeamIds = new Set(
+          (allBattersEverywhere ?? [])
+            .filter((b) => b.opponentId !== current.opponentId && !groupIds.has(b.id))
+            .map((b) => b.opponentId),
         )
+        const otherTeams = (allOpponents ?? []).filter((o) => eligibleOtherTeamIds.has(o.id))
+        // Players on the currently-drilled-into team, eligible to link.
+        const teamPlayers = manualLinkTeamId
+          ? (allBattersEverywhere ?? []).filter(
+              (b) => b.opponentId === manualLinkTeamId && !groupIds.has(b.id),
+            )
+          : []
+        const closeModal = () => {
+          setManageLinksFor(null)
+          setManualLinkTeamId(null)
+        }
         return (
-          <div className="modal-overlay" onClick={() => setManageLinksFor(null)}>
+          <div className="modal-overlay" onClick={closeModal}>
             <div className="card stack" onClick={(e) => e.stopPropagation()}>
               <div className="row spread">
                 <strong>Cross-team links — {displayName(current)}</strong>
-                <button className="small" onClick={() => setManageLinksFor(null)}>Close</button>
+                <button className="small" onClick={closeModal}>Close</button>
               </div>
 
               {teammates.length > 0 ? (
@@ -503,28 +526,91 @@ export default function Roster() {
                 <p className="muted" style={{ margin: 0 }}>Not currently linked to anyone.</p>
               )}
 
-              <strong style={{ marginTop: 8 }}>Link to another team's player</strong>
-              {candidates.length === 0 ? (
-                <p className="empty">No other teams have batters yet.</p>
+              {manualLinkTeamId ? (
+                <>
+                  <div className="row spread" style={{ marginTop: 8 }}>
+                    <button className="small" onClick={() => setManualLinkTeamId(null)}>‹ Teams</button>
+                    <strong>{opponentsById.get(manualLinkTeamId)?.name ?? '?'}</strong>
+                  </div>
+                  {teamPlayers.length === 0 ? (
+                    <p className="empty">No linkable players on this team.</p>
+                  ) : (
+                    <div className="list">
+                      {teamPlayers.map((c) => (
+                        <button
+                          key={c.id}
+                          className="list-item"
+                          style={{ width: '100%' }}
+                          onClick={() => {
+                            closeModal()
+                            setPendingLink({ a: current, b: c })
+                          }}
+                        >
+                          <span>{c.number ? `#${c.number} ` : ''}{displayName(c)}</span>
+                          <span className="chev">›</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="list">
-                  {candidates.map((c) => (
-                    <button
-                      key={c.id}
-                      className="list-item"
-                      style={{ width: '100%' }}
-                      onClick={async () => {
-                        await confirmLink(current, c)
-                        setManageLinksFor(null)
-                      }}
-                    >
-                      <span>{c.number ? `#${c.number} ` : ''}{displayName(c)}</span>
-                      <span className="pill">{opponentsById.get(c.opponentId)?.name ?? '?'}</span>
-                      <span className="chev">›</span>
-                    </button>
-                  ))}
+                <>
+                  <strong style={{ marginTop: 8 }}>Link to another team's player</strong>
+                  {otherTeams.length === 0 ? (
+                    <p className="empty">No other teams have linkable batters yet.</p>
+                  ) : (
+                    <div className="list">
+                      {otherTeams.map((o) => (
+                        <button
+                          key={o.id}
+                          className="list-item"
+                          style={{ width: '100%' }}
+                          onClick={() => setManualLinkTeamId(o.id)}
+                        >
+                          <span className="grow">{o.name}</span>
+                          <span className="chev">›</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {pendingLink && (() => {
+        const { a, b } = pendingLink
+        const nameA = displayName(a)
+        const nameB = displayName(b)
+        const namesMatch = nameA.trim().toLowerCase() === nameB.trim().toLowerCase()
+        const linkOnly = () => {
+          confirmLink(a, b)
+          setPendingLink(null)
+        }
+        const linkWithName = (winner: Batter) => {
+          confirmLink(a, b, { firstName: winner.firstName ?? winner.name, lastName: winner.lastName })
+          setPendingLink(null)
+        }
+        return (
+          <div className="modal-overlay" onClick={() => setPendingLink(null)}>
+            <div className="card stack" onClick={(e) => e.stopPropagation()}>
+              <strong>Sync name across both records?</strong>
+              <p className="muted" style={{ margin: 0 }}>
+                {opponentsById.get(a.opponentId)?.name ?? '?'} has "{nameA}", {opponentsById.get(b.opponentId)?.name ?? '?'} has "{nameB}".
+                {namesMatch ? ' Names already match.' : ' Jersey numbers stay separate per team either way — only the name can sync.'}
+              </p>
+              {namesMatch ? (
+                <button className="primary" onClick={linkOnly}>Link (names already match)</button>
+              ) : (
+                <div className="stack">
+                  <button className="primary" onClick={() => linkWithName(a)}>Use "{nameA}" for both</button>
+                  <button className="primary" onClick={() => linkWithName(b)}>Use "{nameB}" for both</button>
+                  <button onClick={linkOnly}>Link without changing either name</button>
                 </div>
               )}
+              <button className="small" onClick={() => setPendingLink(null)}>Cancel</button>
             </div>
           </div>
         )
