@@ -127,6 +127,7 @@ export function displayName(p: { firstName?: string; lastName?: string; name?: s
   if (!p) return '?'
   if (p.firstName && p.lastName) return `${p.firstName[0].toUpperCase()}. ${p.lastName}`
   if (p.firstName || p.name) return p.firstName || p.name!
+  if (p.lastName) return p.lastName
   if (p.number) return `Batter #${p.number}`
   return '?'
 }
