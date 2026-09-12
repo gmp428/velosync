@@ -1,14 +1,28 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, fullName, getSettings, outcomeLabel, resultLabel, zoneLabel } from '../db'
+import { db, displayName, fullName, getSettings, normalizeZone, outcomeLabel, resultLabel, zoneLabel, type Zone } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
+import { HEAT_BANDS } from '../components/ZoneGrid'
 import {
   aggregate, byCount, byPitcher, byPitchType, byZoneBattle, filterByWindow,
   gameIdsForWindow, isHit, pct, plateDiscipline, successRate, WINDOW_LABELS, type TimeWindow,
 } from '../lib/stats'
 
 const WINDOWS: TimeWindow[] = ['last1', 'last3', 'all']
+
+// Numeric-percentage range label for a HEAT_BANDS entry, derived from its own
+// `min` and the next-higher band's `min` (bands are sorted highest-min first).
+// The highest band has no upper neighbor, so it tops out at 100%; each lower
+// band's range starts right where the one above it stops (no gaps/overlaps),
+// e.g. min:0.6 with a next-band min:0.8 -> "60-79%", not "60-80%".
+function heatBandRangeLabel(index: number): string {
+  const band = HEAT_BANDS[index]
+  const lo = Math.round(Math.max(0, band.min) * 100)
+  const prevBand = index > 0 ? HEAT_BANDS[index - 1] : undefined
+  const hi = prevBand ? Math.round(prevBand.min * 100) - 1 : 100
+  return `${lo}-${hi}%`
+}
 
 export default function BatterReport() {
   const { id } = useParams()
@@ -30,6 +44,7 @@ export default function BatterReport() {
   const [win, setWin] = useState<TimeWindow>('all')
   const [pitcherFilter, setPitcherFilter] = useState<string | 'all'>('all')
   const [expandedAb, setExpandedAb] = useState<string | null>(null)
+  const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
 
   if (!batter || !opponent || !pitches || !atBats || !allGames || !pitchers || !pitchTypes || !settings) return null
 
@@ -97,7 +112,66 @@ export default function BatterReport() {
 
           <h2>Zone heat map</h2>
           <p className="muted">Red = our pitch won (strikes, fouls, outs), blue = they hit it. Number = pitches there.</p>
-          <ZoneGrid heat={heat} granular={settings.capture.granularZones} />
+          <div className="row" style={{ gap: 0, marginBottom: 8 }}>
+            {HEAT_BANDS.map((band, i) => (
+              <div
+                key={band.min}
+                style={{
+                  flex: 1,
+                  background: band.bg,
+                  color: band.fg,
+                  textAlign: 'center',
+                  fontSize: 12,
+                  padding: '4px 2px',
+                }}
+              >
+                {heatBandRangeLabel(i)}
+              </div>
+            ))}
+          </div>
+          <ZoneGrid
+            heat={heat}
+            granular={settings.capture.granularZones}
+            selected={selectedZone}
+            onSelect={(z) => setSelectedZone(selectedZone === z ? null : z)}
+          />
+          {selectedZone !== null && (() => {
+            const resolution = settings.capture.granularZones ? 'granular' : 'coarse'
+            const zonePitches = viewPitches.filter((p) => normalizeZone(p.zone, resolution) === selectedZone)
+            const byType = new Map<string, typeof zonePitches>()
+            for (const p of zonePitches) {
+              const arr = byType.get(p.pitchTypeId) ?? []
+              arr.push(p)
+              byType.set(p.pitchTypeId, arr)
+            }
+            return (
+              <div className="card stack" style={{ marginTop: 4 }}>
+                <div className="row spread">
+                  <strong>{zoneLabel(selectedZone)} — pitch breakdown</strong>
+                  <button className="small" onClick={() => setSelectedZone(null)}>Close</button>
+                </div>
+                {zonePitches.length === 0 ? (
+                  <p className="muted">No pitches logged in this zone.</p>
+                ) : (
+                  [...byType.entries()].map(([typeId, tp]) => {
+                    const resultCounts = new Map<string, number>()
+                    for (const p of tp) {
+                      const label = resultLabel(p)
+                      resultCounts.set(label, (resultCounts.get(label) ?? 0) + 1)
+                    }
+                    return (
+                      <div key={typeId}>
+                        <span>{pitchTypeById.get(typeId) ?? 'Pitch'} — {tp.length}</span>
+                        <div className="muted" style={{ marginLeft: 8 }}>
+                          {[...resultCounts.entries()].map(([label, count]) => `${label}: ${count}`).join(' · ')}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            )
+          })()}
 
           <h2>By pitch type</h2>
           <table>

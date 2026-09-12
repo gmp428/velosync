@@ -62,6 +62,9 @@ export default function Roster() {
   // names later between innings.
   const [quickNumbers, setQuickNumbers] = useState('')
   const [showQuickAdd, setShowQuickAdd] = useState(false)
+  // Simple tap-to-expand toggle for the batting-order section — always
+  // starts collapsed (not auto-expanded based on lineup completeness).
+  const [showBattingOrder, setShowBattingOrder] = useState(false)
 
   const resetForm = () => {
     setEditingId(null)
@@ -213,46 +216,58 @@ export default function Roster() {
   return (
     <main>
       <h1>{opponent.name}</h1>
-      <p className="muted">Tap a batter to see their scouting report.</p>
 
-      <h2 style={{ marginTop: 20 }}>Batting order — drag ≡ to reorder</h2>
-      <p className="muted">
-        {activeCount} checked in for today. Sets the default lineup order for this team's next game.
-      </p>
-      {activeCount > 0 && activeCount < 8 && (
-        <p className="warning" style={{ marginTop: -8 }}>
-          Only {activeCount} checked in — most leagues require at least 8 to
-          play (rules vary; this isn't blocked, just a heads up).
-        </p>
-      )}
-      {activeCount > 0 && activeCount <= 8 && (
-        <label className="row" style={{ alignItems: 'center', gap: 8, marginTop: -8 }}>
-          <input
-            type="checkbox"
-            checked={opponent?.ghostOutEnabled === true}
-            onChange={(e) => setGhostEnabled(e.target.checked)}
-            style={{ width: 20, height: 20, flexShrink: 0 }}
-          />
-          <span className="muted">
-            Add a Ghost Batter (Auto Out) for the missing spot — some leagues require an
-            automatic out when you're short-handed.
-          </span>
-        </label>
-      )}
-      {battingOrder.length > 0 ? (
-        <LineupEditor
-          order={battingOrder}
-          batters={activeBatters}
-          onChange={reorder}
-          onRemoveBatter={(batterId) =>
-            batterId === GHOST_OUT ? setGhostEnabled(false) : setActive(batterId, false)
-          }
-        />
-      ) : (
-        <p className="empty">Check batters into today's lineup below to set a batting order.</p>
+      <h2
+        style={{ marginTop: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+        onClick={() => setShowBattingOrder((v) => !v)}
+        role="button"
+        aria-expanded={showBattingOrder}
+      >
+        <span className="chev">{showBattingOrder ? '▾' : '▸'}</span>
+        Batting order — drag ≡ to reorder
+      </h2>
+      {showBattingOrder && (
+        <>
+          <p className="muted">
+            {activeCount} checked in for today. Sets the default lineup order for this team's next game.
+          </p>
+          {activeCount > 0 && activeCount < 8 && (
+            <p className="warning" style={{ marginTop: -8 }}>
+              Only {activeCount} checked in — most leagues require at least 8 to
+              play (rules vary; this isn't blocked, just a heads up).
+            </p>
+          )}
+          {activeCount > 0 && activeCount <= 8 && (
+            <label className="row" style={{ alignItems: 'center', gap: 8, marginTop: -8 }}>
+              <input
+                type="checkbox"
+                checked={opponent?.ghostOutEnabled === true}
+                onChange={(e) => setGhostEnabled(e.target.checked)}
+                style={{ width: 20, height: 20, flexShrink: 0 }}
+              />
+              <span className="muted">
+                Add a Ghost Batter (Auto Out) for the missing spot — some leagues require an
+                automatic out when you're short-handed.
+              </span>
+            </label>
+          )}
+          {battingOrder.length > 0 ? (
+            <LineupEditor
+              order={battingOrder}
+              batters={activeBatters}
+              onChange={reorder}
+              onRemoveBatter={(batterId) =>
+                batterId === GHOST_OUT ? setGhostEnabled(false) : setActive(batterId, false)
+              }
+            />
+          ) : (
+            <p className="empty">Check batters into today's lineup below to set a batting order.</p>
+          )}
+        </>
       )}
 
       <h2 style={{ marginTop: 20 }}>Roster</h2>
+      <p className="muted">Click a batter to see their full scouting report.</p>
       <div className="list">
         {rosterList.map((b) => {
           const isActive = b.activeToday !== false
