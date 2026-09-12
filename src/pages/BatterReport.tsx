@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, fullName, getSettings, outcomeLabel, resultLabel, zoneLabel } from '../db'
+import { db, displayName, fullName, getSettings, linkedBatterIds, outcomeLabel, resultLabel, zoneLabel } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
 import {
   aggregate, byCount, byPitcher, byPitchType, byZoneBattle, filterByWindow,
@@ -20,8 +20,24 @@ export default function BatterReport() {
     () => (batter ? db.opponents.get(batter.opponentId) : undefined),
     [batter?.opponentId],
   )
-  const pitches = useLiveQuery(() => db.pitches.where('batterId').equals(batterId).toArray(), [batterId])
-  const atBats = useLiveQuery(() => db.atBats.where('batterId').equals(batterId).toArray(), [batterId])
+  // Cross-team player identity: if this batter is linked to records on
+  // other teams, combine pitch/at-bat history from ALL of them — the
+  // underlying records are never merged, this just widens the query.
+  const allBattersEverywhere = useLiveQuery(() => db.batters.toArray(), [])
+  const groupIds = batter && allBattersEverywhere ? linkedBatterIds(batter, allBattersEverywhere) : [batterId]
+  const linkedBattersInfo = allBattersEverywhere?.filter((b) => groupIds.includes(b.id)) ?? []
+  const opponentsAll = useLiveQuery(() => db.opponents.toArray(), [])
+  const opponentNameByBatterId = new Map(
+    linkedBattersInfo.map((b) => [b.id, opponentsAll?.find((o) => o.id === b.opponentId)?.name ?? '?']),
+  )
+  const pitches = useLiveQuery(
+    () => db.pitches.where('batterId').anyOf(groupIds).toArray(),
+    [groupIds.join(',')],
+  )
+  const atBats = useLiveQuery(
+    () => db.atBats.where('batterId').anyOf(groupIds).toArray(),
+    [groupIds.join(',')],
+  )
   const allGames = useLiveQuery(() => db.games.toArray(), [])
   const pitchers = useLiveQuery(() => db.pitchers.toArray(), [])
   const pitchTypes = useLiveQuery(() => db.pitchTypes.toArray(), [])
@@ -65,6 +81,11 @@ export default function BatterReport() {
         <span className="pill">bats {batter.bats}</span>
       </h1>
       <p className="muted"><Link to={`/opponent/${opponent.id}`}>{opponent.name}</Link></p>
+      {linkedBattersInfo.length > 1 && (
+        <p className="muted" style={{ fontSize: '0.85rem' }}>
+          🔗 Combined with linked records on: {linkedBattersInfo.filter((b) => b.id !== batter.id).map((b) => opponentNameByBatterId.get(b.id)).join(', ')}
+        </p>
+      )}
 
       <div className="chips">
         {WINDOWS.map((w) => (
@@ -195,6 +216,7 @@ export default function BatterReport() {
               const inningLabel = ab.inning
                 ? `${(g?.half ?? 'top') === 'top' ? 'Top' : 'Bot'} ${ab.inning} · `
                 : ''
+              const teamLabel = linkedBattersInfo.length > 1 ? opponentNameByBatterId.get(ab.batterId) : null
               return (
                 <div key={ab.id}>
                   <button
@@ -203,7 +225,9 @@ export default function BatterReport() {
                     onClick={() => setExpandedAb(open ? null : ab.id)}
                   >
                     <span>{outcomeLabel(ab.outcome!)}</span>
-                    <span className="muted">vs {pitcherName(ab.pitcherId)}</span>
+                    <span className="muted">
+                      vs {pitcherName(ab.pitcherId)}{teamLabel ? ` (${teamLabel})` : ''}
+                    </span>
                     <span className="chev">
                       {inningLabel}{g?.date ?? ''} {open ? '▾' : '▸'}
                     </span>

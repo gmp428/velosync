@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link, Outlet, matchPath, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
 import BottomNav from './components/BottomNav'
@@ -25,6 +26,19 @@ function Topbar() {
 export default function App() {
   const { pathname } = useLocation()
   const liveGame = Boolean(matchPath('/game/:id', pathname))
+
+  // Mobile Safari/WebKit PWA bug: navigating "back" to a long scrollable
+  // list (e.g. Roster) can restore the previous scroll offset before the
+  // page has actually repainted at that position -- leaving a blank frame
+  // that only redraws once you manually scroll. Forcing a scrollTo on the
+  // next frame after every route change makes the browser repaint
+  // immediately, so the blank frame never has a chance to show.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      window.scrollTo(window.scrollX, window.scrollY)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [pathname])
 
   return (
     <HeaderExtraProvider>
