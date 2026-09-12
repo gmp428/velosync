@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CAPTURE_PRESETS, compactDisplayName, db, displayName, getSettings, GHOST_OUT, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
+  CAPTURE_PRESETS, compactDisplayName, db, displayName, getSettings, GHOST_OUT, linkedBatterIds, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
   type AtBat, type AtBatOutcome, type Batter, type InPlayOutcome, type Pitch, type PitchResult, type Zone,
 } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
@@ -159,10 +159,21 @@ export default function LiveGame() {
   )
   const atBatCount = useLiveQuery(() => db.atBats.where('gameId').equals(gameId).count(), [gameId])
   const gameAtBats = useLiveQuery(() => db.atBats.where('gameId').equals(gameId).toArray(), [gameId])
-  // All history on the current batter, live-updating as pitches are logged
+  // Cross-team player identity: the batter currently at the plate may be
+  // linked (via linkGroupId) to records on OTHER teams' rosters. Widen the
+  // history query to cover every linked record, the same way BatterReport
+  // does -- otherwise a linked player's history from other teams silently
+  // disappears the moment a live game starts (only BatterReport combined it).
+  const allBattersEverywhere = useLiveQuery(() => db.batters.toArray(), [])
+  const currentBatterRecord = openAtBat ? roster?.find((b) => b.id === openAtBat.batterId) : undefined
+  const batterGroupIds = currentBatterRecord && allBattersEverywhere
+    ? linkedBatterIds(currentBatterRecord, allBattersEverywhere)
+    : (openAtBat ? [openAtBat.batterId] : [])
+  // All history on the current batter (and any cross-team-linked records),
+  // live-updating as pitches are logged
   const batterHistory = useLiveQuery(
-    () => (openAtBat ? db.pitches.where('batterId').equals(openAtBat.batterId).toArray() : Promise.resolve([] as Pitch[])),
-    [openAtBat?.batterId],
+    () => (openAtBat ? db.pitches.where('batterId').anyOf(batterGroupIds).toArray() : Promise.resolve([] as Pitch[])),
+    [openAtBat?.batterId, batterGroupIds.join(',')],
   )
 
   const [selType, setSelType] = useState<string | null>(null)
