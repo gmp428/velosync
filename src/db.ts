@@ -187,7 +187,7 @@ export function pitcherArsenal(pitcher: Pitcher | undefined, allTypes: PitchType
 export interface LinkSuggestion {
   batter: Batter
   opponentName: string
-  reason: 'name' | 'number+lastname'
+  reason: 'name' | 'number+lastname' | 'lastname-missing-firstname'
 }
 
 function normalizeNamePart(s: string | undefined): string {
@@ -225,6 +225,12 @@ export function findLinkSuggestions(
       lastName && lastName === otherLast
     ) {
       reason = 'number+lastname'
+    } else if (lastName && lastName === otherLast && (!firstName || !otherFirst)) {
+      // Last name matches, and at least one side has no first name entered.
+      // Distinct from the "genuinely different first names" case (which must
+      // stay silent -- too noisy) -- this only fires when a first name is
+      // actually missing, not when both sides disagree.
+      reason = 'lastname-missing-firstname'
     }
     if (reason) {
       const opp = opponentsById.get(other.opponentId)

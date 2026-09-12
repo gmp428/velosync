@@ -450,7 +450,11 @@ export default function Roster() {
                   <div className="grow">
                     <div>{m.batter.number ? `#${m.batter.number} ` : ''}{displayName(m.batter)}</div>
                     <div className="muted" style={{ fontSize: '0.8rem' }}>
-                      {m.opponentName} · {m.reason === 'name' ? 'same name' : 'same number + last name'}
+                      {m.opponentName} · {m.reason === 'name'
+                        ? 'same name'
+                        : m.reason === 'number+lastname'
+                          ? 'same number + last name'
+                          : 'same last name — first name not entered yet on one or both teams'}
                     </div>
                   </div>
                   <button
