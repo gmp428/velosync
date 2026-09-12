@@ -103,10 +103,11 @@ export default function Roster() {
     const first = firstName.trim()
     const last = lastName.trim()
     const num = number.trim()
-    // Require SOMETHING to identify the batter by — either a name or a
-    // jersey number (a number-only entry displays as "Batter #N" via
-    // displayName's fallback until a real name is added later).
-    if (!first && !num) return
+    // Require SOMETHING to identify the batter by — first name, last name,
+    // or jersey number all count (a number-only entry displays as
+    // "Batter #N" via displayName's fallback until a real name is added
+    // later; a last-name-only entry is equally valid on its own).
+    if (!first && !last && !num) return
     const fields = {
       firstName: first || undefined, lastName: last || undefined,
       number: num, bats, updatedAt: now(), ...pendingSync(),
@@ -129,11 +130,11 @@ export default function Roster() {
     }
     resetForm()
 
-    // Cross-team player identity: whenever a real name was just saved (not
-    // just a jersey number), check for likely matches on OTHER opponents'
-    // rosters and surface them as a suggestion. Never fires for a bare
-    // quick-add placeholder (no name yet) — nothing to match on.
-    if (first && allBattersEverywhere) {
+    // Cross-team player identity: check for likely matches on OTHER
+    // opponents' rosters whenever a LAST name was just saved. Last name is
+    // the trigger on purpose — first names and jersey numbers alone are too
+    // common/noisy to justify running the match check.
+    if (last && allBattersEverywhere) {
       const saved = await db.batters.get(savedId)
       if (saved) {
         const matches = findLinkSuggestions(saved, allBattersEverywhere, opponentsById)
