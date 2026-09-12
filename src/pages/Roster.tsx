@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, displayName, findLinkSuggestions, GHOST_OUT, newId, now, pendingSync, type Batter, type LinkSuggestion } from '../db'
+import { db, displayName, fullName, findLinkSuggestions, GHOST_OUT, newId, now, pendingSync, type Batter, type LinkSuggestion } from '../db'
 import LineupEditor from '../components/LineupEditor'
 import NumberPadInput from '../components/NumberPadInput'
 
@@ -443,13 +443,13 @@ export default function Roster() {
           <div className="card stack" onClick={(e) => e.stopPropagation()}>
             <strong>Same player on another team?</strong>
             <p className="muted" style={{ margin: 0 }}>
-              {displayName(suggestFor.batter)} looks like it might be the same player as:
+              {fullName(suggestFor.batter)} looks like it might be the same player as:
             </p>
             <div className="list">
               {suggestFor.matches.map((m) => (
                 <div key={m.batter.id} className="list-item" style={{ width: '100%' }}>
                   <div className="grow">
-                    <div>{m.batter.number ? `#${m.batter.number} ` : ''}{displayName(m.batter)}</div>
+                    <div>{m.batter.number ? `#${m.batter.number} ` : ''}{fullName(m.batter)}</div>
                     <div className="muted" style={{ fontSize: '0.8rem' }}>
                       {m.opponentName} · {m.reason === 'name'
                         ? 'same name'
@@ -587,8 +587,8 @@ export default function Roster() {
 
       {pendingLink && (() => {
         const { a, b } = pendingLink
-        const nameA = displayName(a)
-        const nameB = displayName(b)
+        const nameA = fullName(a)
+        const nameB = fullName(b)
         const namesMatch = nameA.trim().toLowerCase() === nameB.trim().toLowerCase()
         const linkOnly = () => {
           confirmLink(a, b)
