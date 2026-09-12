@@ -111,23 +111,26 @@ export default function BatterReport() {
           </div>
 
           <h2>Zone heat map</h2>
-          <p className="muted">Red = our pitch won (strikes, fouls, outs), blue = they hit it. Number = pitches there.</p>
+          <p className="muted">Blue = they hit it, red = our pitch won (strikes, fouls, outs). Number = pitches there.</p>
           <div className="row" style={{ gap: 0, marginBottom: 8 }}>
-            {HEAT_BANDS.map((band, i) => (
-              <div
-                key={band.min}
-                style={{
-                  flex: 1,
-                  background: band.bg,
-                  color: band.fg,
-                  textAlign: 'center',
-                  fontSize: 12,
-                  padding: '4px 2px',
-                }}
-              >
-                {heatBandRangeLabel(i)}
-              </div>
-            ))}
+            {HEAT_BANDS.map((_, i) => i).reverse().map((i) => {
+              const band = HEAT_BANDS[i]
+              return (
+                <div
+                  key={band.min}
+                  style={{
+                    flex: 1,
+                    background: band.bg,
+                    color: band.fg,
+                    textAlign: 'center',
+                    fontSize: 12,
+                    padding: '4px 2px',
+                  }}
+                >
+                  {heatBandRangeLabel(i)}
+                </div>
+              )
+            })}
           </div>
           <ZoneGrid
             heat={heat}
