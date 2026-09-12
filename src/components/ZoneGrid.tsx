@@ -73,7 +73,7 @@ const CELLS_GRANULAR: Array<{ zone: Zone; style: React.CSSProperties; label?: st
 // bands as the command grouping map (stats.ts GROUPING_BANDS) so the whole
 // app uses one consistent palette. Deliberately overrides the colorblind-
 // safe default G originally asked for — do not revert without being asked.
-const HEAT_BANDS: Array<{ min: number; bg: string; fg: string }> = [
+export const HEAT_BANDS: Array<{ min: number; bg: string; fg: string }> = [
   { min: 0.8, bg: '#ED2E14', fg: '#ffffff' }, // red — best
   { min: 0.6, bg: '#EE8102', fg: '#0d1526' }, // orange
   { min: 0.4, bg: '#F4D908', fg: '#0d1526' }, // yellow
