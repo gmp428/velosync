@@ -4,6 +4,31 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-09-12
+
+### Added
+- **Cross-team player identity linking**: a player who appears on multiple
+  teams' rosters (e.g. a travel-ball kid across tournaments) can now be
+  linked so their scouting history combines across teams. Suggestions are
+  surfaced automatically (matching full name, jersey number + last name, or
+  last name alone when a first name hasn't been entered yet) whenever a
+  batter's name is saved; manual linking via a team-then-player picker is
+  always available as a fallback. Linking optionally syncs the player's
+  name across both records (jersey number and bats-handedness always stay
+  independent per team). Unlinking is instant and lossless — nothing is
+  ever actually merged at the data layer, so undoing a link is a single
+  click. Combined pitch/at-bat history now shows in both BatterReport and
+  live during an at-bat in LiveGame.
+
+### Fixed
+- Back-navigating from a report to a long scrolled list (Roster, Pitchers,
+  Games) no longer shows a blank screen until you manually scroll — the
+  page now forces a repaint on every navigation.
+- Editing a roster batter's name with only a first name OR only a last
+  name (not both) now updates the roster list and batting order display
+  immediately, instead of requiring both fields to be filled in before the
+  display refreshes from the "Batter #xx" placeholder.
+
 ## [0.13.0] — 2026-09-06
 
 ### Added
