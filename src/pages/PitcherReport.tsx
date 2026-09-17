@@ -121,13 +121,13 @@ export default function PitcherReport() {
                     back to the overall heat map.
                   </p>
                   <div className="row" style={{ alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                    <span className="muted" style={{ fontSize: '0.75rem' }}>Tight</span>
+                    <span className="muted" style={{ fontSize: '0.75rem' }}>Scattered</span>
                     <div style={{ display: 'flex', flex: 1, height: 10, borderRadius: 4, overflow: 'hidden' }}>
-                      {GROUPING_BANDS.map((band, i) => (
-                        <div key={i} style={{ flex: 1, background: band.bg }} />
+                      {GROUPING_BANDS.map((_, i) => i).reverse().map((i) => (
+                        <div key={i} style={{ flex: 1, background: GROUPING_BANDS[i].bg }} />
                       ))}
                     </div>
-                    <span className="muted" style={{ fontSize: '0.75rem' }}>Scattered</span>
+                    <span className="muted" style={{ fontSize: '0.75rem' }}>Tight</span>
                   </div>
                   <div className="chips">
                     <button className={`chip ${groupingPitchType === 'all' ? 'on' : ''}`} onClick={() => { setGroupingPitchType('all'); setDrillDownZone(null) }}>
