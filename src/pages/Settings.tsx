@@ -84,99 +84,107 @@ export default function Settings() {
   if (!pitchTypes || !settings) return null
 
   return (
-    <main>
+    <main className="settings-page">
       <h1>Settings</h1>
 
-      <h2>Logging detail</h2>
-      <p className="muted">How much to capture per pitch. Keep it quick, or opt into more detail.</p>
-      <div className="chips">
-        {PRESETS.map((p) => (
-          <button
-            key={p.key}
-            className={`chip ${settings.preset === p.key ? 'on' : ''}`}
-            onClick={() => selectPreset(p.key)}
-          >
-            {p.label}
-          </button>
-        ))}
-        {settings.preset === 'custom' && <span className="chip on">Custom</span>}
-      </div>
-      <p className="muted" style={{ marginTop: 0 }}>
-        {settings.preset === 'custom'
-          ? 'Custom — individual fields set below.'
-          : PRESETS.find((p) => p.key === settings.preset)?.blurb}
-      </p>
-
-      <button className="small" onClick={() => setShowAdvanced((v) => !v)}>
-        {showAdvanced ? 'Hide advanced' : 'Advanced — pick individual fields'}
-      </button>
-      {showAdvanced && (
-        <div className="list" style={{ marginTop: 8 }}>
-          {CAPTURE_LABELS.map(({ key, label, help }) => {
-            const live = LIVE_CAPTURE_FLAGS.includes(key)
-            const on = settings.capture[key]
-            return (
-              <div key={key} className="list-item" style={{ opacity: live ? 1 : 0.6 }}>
-                <div className="grow">
-                  <div>{label} {!live && <span className="pill">coming soon</span>}</div>
-                  <div className="muted">{help}</div>
-                </div>
-                <button
-                  className={`chip small-chip ${on ? 'on' : ''}`}
-                  disabled={!live}
-                  onClick={() => toggleFlag(key)}
-                >
-                  {on ? 'On' : 'Off'}
-                </button>
-              </div>
-            )
-          })}
+      <section className="sheet">
+        <h2>Logging detail</h2>
+        <p className="muted">How much to capture per pitch. Keep it quick, or opt into more detail.</p>
+        <div className="chips">
+          {PRESETS.map((p) => (
+            <button
+              key={p.key}
+              className={`chip ${settings.preset === p.key ? 'on' : ''}`}
+              onClick={() => selectPreset(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+          {settings.preset === 'custom' && <span className="chip on">Custom</span>}
         </div>
-      )}
+        <p className="muted" style={{ marginTop: 0 }}>
+          {settings.preset === 'custom'
+            ? 'Custom — individual fields set below.'
+            : PRESETS.find((p) => p.key === settings.preset)?.blurb}
+        </p>
 
-      <h2>Pitch types</h2>
-      <div className="list">
-        {pitchTypes.map((t) => (
-          <div key={t.id} className="list-item">
-            <span className="grow">{t.name}</span>
-            <button className="small" onClick={() => renameType(t.id, t.name)}>Rename</button>
-            <button className="small danger" onClick={() => removeType(t.id)}>✕</button>
+        <button className="small" onClick={() => setShowAdvanced((v) => !v)}>
+          {showAdvanced ? 'Hide advanced' : 'Advanced — pick individual fields'}
+        </button>
+        {showAdvanced && (
+          <div className="list" style={{ marginTop: 8 }}>
+            {CAPTURE_LABELS.map(({ key, label, help }) => {
+              const live = LIVE_CAPTURE_FLAGS.includes(key)
+              const on = settings.capture[key]
+              return (
+                <div key={key} className="list-item" style={{ opacity: live ? 1 : 0.6 }}>
+                  <div className="grow">
+                    <div>{label} {!live && <span className="pill">coming soon</span>}</div>
+                    <div className="muted">{help}</div>
+                  </div>
+                  <button
+                    className={`chip small-chip ${on ? 'on' : ''}`}
+                    disabled={!live}
+                    onClick={() => toggleFlag(key)}
+                  >
+                    {on ? 'On' : 'Off'}
+                  </button>
+                </div>
+              )
+            })}
           </div>
-        ))}
-      </div>
-      <form onSubmit={addType} className="row">
-        <input
-          className="grow"
-          placeholder="New pitch type"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          aria-label="New pitch type"
-        />
-        <button type="submit" className="primary">Add</button>
-      </form>
+        )}
+      </section>
 
-      <h2>Backup</h2>
-      <p className="muted">
-        All data lives on this device. Nothing is sent off the phone until cloud sync exists.
-        Export a backup file every so often (and before switching phones), then import it to restore.
-      </p>
-      <div className="row">
-        <button className="primary grow" onClick={doExport}>Export backup</button>
-        <button className="grow" onClick={() => fileInput.current?.click()}>Import backup</button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json,.json"
-          style={{ display: 'none' }}
-          onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])}
-        />
-      </div>
+      <section className="sheet">
+        <h2>Pitch types</h2>
+        <div className="list">
+          {pitchTypes.map((t) => (
+            <div key={t.id} className="list-item">
+              <span className="grow">{t.name}</span>
+              <button className="small" onClick={() => renameType(t.id, t.name)}>Rename</button>
+              <button className="small danger" onClick={() => removeType(t.id)}>✕</button>
+            </div>
+          ))}
+        </div>
+        <form onSubmit={addType} className="row">
+          <input
+            className="grow"
+            placeholder="New pitch type"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            aria-label="New pitch type"
+          />
+          <button type="submit" className="primary">Add</button>
+        </form>
+      </section>
 
-      <h2>About</h2>
-      <p className="muted">
-        VeloSync — log every pitch by type, location, and result to build scouting reports
-        on opposing batters and find the right pitch for each matchup.
-      </p>
+      <section className="sheet">
+        <h2>Backup</h2>
+        <p className="muted">
+          All data lives on this device. Nothing is sent off the phone until cloud sync exists.
+          Export a backup file every so often (and before switching phones), then import it to restore.
+        </p>
+        <div className="row">
+          <button className="primary grow" onClick={doExport}>Export backup</button>
+          <button className="grow" onClick={() => fileInput.current?.click()}>Import backup</button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: 'none' }}
+            onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])}
+          />
+        </div>
+      </section>
+
+      <section className="sheet">
+        <h2>About</h2>
+        <p className="muted">
+          VeloSync — log every pitch by type, location, and result to build scouting reports
+          on opposing batters and find the right pitch for each matchup.
+        </p>
+      </section>
     </main>
   )
 }

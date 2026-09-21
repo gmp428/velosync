@@ -74,7 +74,7 @@ export default function BatterReport() {
   const pitcherName = (pid: string) => displayName(pitchers.find((p) => p.id === pid))
 
   return (
-    <main>
+    <main className="report-page">
       <button className="small" style={{ marginTop: 10 }} onClick={() => navigate(-1)}>‹ Back</button>
       <h1>
         {batter.number ? `#${batter.number} ` : ''}{fullName(batter)}{' '}
@@ -118,7 +118,9 @@ export default function BatterReport() {
 
           <h2>Zone heat map</h2>
           <p className="muted">Red = our pitch won (strikes, fouls, outs), blue = they hit it. Number = pitches there.</p>
-          <ZoneGrid heat={heat} granular={settings.capture.granularZones} />
+          <div className="card heat-card">
+            <ZoneGrid heat={heat} granular={settings.capture.granularZones} />
+          </div>
 
           <h2>By pitch type</h2>
           <table>

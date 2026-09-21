@@ -4,12 +4,34 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#e8eef7" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="VeloSync" />
     <link rel="icon" href="%BASE_URL%pwa-192.png" type="image/png" />
     <link rel="apple-touch-icon" href="%BASE_URL%pwa-192.png" />
     <title>VeloSync</title>
+    <style>
+      html, body { margin: 0; background: #e8eef7; color: #0d1526; }
+      .splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(ellipse 80% 50% at 50% 32%, #f7fafd 0%, transparent 70%),
+          linear-gradient(180deg, #f3f6fb 0%, #e8eef7 52%, #dce6f3 100%);
+      }
+      .splash img { width: min(300px, 78vw); height: auto; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="splash" role="img" aria-label="VeloSync">
+        <img src="%BASE_URL%logos/velosync-horizontal.png" alt="VeloSync" />
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

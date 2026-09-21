@@ -10,6 +10,27 @@
   --accent-dark: #1d4ed8; /* primary-button background */
   --good: #15803d;
   --bad: #c0242c;
+
+  /* Soft elevation — replaces 1px gray flat borders on cards/lists */
+  --hairline: rgba(13, 21, 38, 0.08);
+  --elev-sm: 0 1px 2px rgba(13, 21, 38, 0.05), 0 6px 16px rgba(13, 21, 38, 0.06);
+  --elev-md: 0 2px 8px rgba(13, 21, 38, 0.06), 0 12px 28px rgba(13, 21, 38, 0.08);
+  --elev-lg: 0 8px 32px rgba(13, 21, 38, 0.12);
+  --cta-shadow: 0 4px 14px rgba(29, 78, 216, 0.28);
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+
+  /* Glass-lite: bottom nav + settings sheets only. Not a Liquid Glass clone.
+     Live game (/game/:id) must stay fully opaque — see .live-game rules. */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.84);
+  --glass-blur: 16px;
+  --glass-sat: 150%;
+  --glass-highlight: rgba(255, 255, 255, 0.78);
+  --glass-edge: rgba(188, 199, 216, 0.42);
+  --glass-shadow: 0 -8px 28px rgba(13, 21, 38, 0.08);
+
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -18,8 +39,31 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
+  background:
+    radial-gradient(900px 420px at 50% -80px, #f7fafd 0%, transparent 70%),
+    var(--bg);
   color: var(--text);
+}
+
+/* First-paint branded splash (index.html). React replaces #root on mount. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 32%, #f7fafd 0%, transparent 70%),
+    linear-gradient(180deg, #f3f6fb 0%, #e8eef7 52%, #dce6f3 100%);
+  padding: 24px;
+}
+.splash img {
+  width: min(300px, 78vw);
+  height: auto;
+  filter: drop-shadow(0 10px 28px rgba(13, 21, 38, 0.12));
 }
 
 /* Bottom nav total height: 8px top pad + 22px icon + 2px gap + ~13px label line
@@ -31,10 +75,16 @@ html, body {
 /* Live logger (/game/:id): no tab bar, so drop the reserved nav inset and sit flush. */
 #root:has(.live-game) { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-h1, h2, h3 { margin: 12px 0 8px; }
-h1 { font-size: 1.3rem; }
-h2 { font-size: 1.1rem; }
-h3 { font-size: 0.95rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+h1, h2, h3 { margin: 14px 0 10px; }
+h1 { font-size: 1.55rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+h2 { font-size: 1.28rem; font-weight: 700; letter-spacing: -0.015em; }
+h3 {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
 
 a { color: var(--accent); text-decoration: none; }
 
@@ -42,9 +92,10 @@ a { color: var(--accent); text-decoration: none; }
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 10px;
+  padding: 12px 0 14px;
+  border-bottom: none;
+  box-shadow: 0 1px 0 rgba(13, 21, 38, 0.06);
+  margin-bottom: 12px;
   position: sticky;
   top: 0;
   background: var(--bg);
@@ -57,7 +108,7 @@ a { color: var(--accent); text-decoration: none; }
   gap: 12px;
 }
 .topbar-subheader {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--muted);
   padding-left: 2px;
@@ -79,7 +130,10 @@ a { color: var(--accent); text-decoration: none; }
    bar itself (via env(safe-area-inset-bottom)), so the 51px of tappable
    icon+label content always sits above the home indicator instead of being
    squeezed into it. Total rendered bar height on an iPhone with a 34px
-   safe area is therefore 51 + 34 = 85px. */
+   safe area is therefore 51 + 34 = 85px.
+
+   Glass-lite material: frosted white tint + modest blur. Hidden on live
+   game (BottomNav is not mounted). */
 .bottom-nav {
   position: fixed;
   left: 0;
@@ -89,8 +143,12 @@ a { color: var(--accent); text-decoration: none; }
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  background: var(--panel);
-  border-top: 1px solid var(--border);
+  isolation: isolate;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  border-top: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .bottom-nav-tab {
@@ -103,30 +161,45 @@ a { color: var(--accent); text-decoration: none; }
   padding: 8px 4px 6px;
   min-height: 51px;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-decoration: none;
+  border-radius: 12px;
+  margin: 4px 2px 2px;
 }
-.bottom-nav-tab.active { color: var(--accent); }
+.bottom-nav-tab.active {
+  color: var(--accent);
+  background: rgba(29, 78, 216, 0.08);
+}
 
 button, .btn {
   font: inherit;
-  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hairline);
   background: var(--panel);
   color: var(--text);
-  border-radius: 10px;
-  padding: 10px 14px;
-  min-height: 44px;
+  border-radius: var(--radius-sm);
+  padding: 11px 16px;
+  min-height: 48px;
   cursor: pointer;
   text-align: center;
+  box-shadow: var(--elev-sm);
 }
 button:active, .btn:active { transform: scale(0.98); }
-button.primary, .btn.primary { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; font-weight: 600; }
-button.danger { border-color: #e0a3a3; color: var(--bad); }
+button.primary, .btn.primary {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: var(--cta-shadow);
+}
+button.danger { border-color: #e0a3a3; color: var(--bad); box-shadow: var(--elev-sm); }
 
-.warning { color: #a66b00; font-size: 0.9rem; }
-button.small { min-height: 34px; padding: 6px 10px; font-size: 0.85rem; border-radius: 8px; }
-button.small.icon-btn { width: 34px; min-width: 34px; padding: 6px; display: inline-flex; align-items: center; justify-content: center; }
+.warning { color: #a66b00; font-size: 0.95rem; }
+button.small { min-height: 36px; padding: 6px 12px; font-size: 0.9rem; border-radius: 10px; box-shadow: none; }
+button.small.icon-btn { width: 36px; min-width: 36px; padding: 6px; display: inline-flex; align-items: center; justify-content: center; }
 button.link-btn {
   background: none;
   border: none;
@@ -137,58 +210,100 @@ button.link-btn {
   font-size: inherit;
   text-decoration: underline;
   cursor: pointer;
+  box-shadow: none;
 }
 button:disabled { opacity: 0.45; cursor: default; }
 
 .card {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-  margin: 10px 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin: 12px 0;
+  box-shadow: var(--elev-sm);
 }
 
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row.spread { justify-content: space-between; }
 .stack { display: flex; flex-direction: column; gap: 8px; }
-.muted { color: var(--muted); font-size: 0.85rem; }
+.muted { color: var(--muted); font-size: 0.92rem; }
 .grow { flex: 1; }
+
+.hero-actions { margin-top: 12px; }
+.hero-actions .btn {
+  min-height: 52px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border-radius: 14px;
+}
 
 input, select {
   font: inherit;
-  background: var(--panel-2);
+  background: var(--panel);
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
-  min-height: 44px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 48px;
   width: 100%;
+  box-shadow: var(--elev-sm);
 }
-label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 4px; }
+label { font-size: 0.9rem; color: var(--muted); display: block; margin-bottom: 4px; }
 
-.list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.list { display: flex; flex-direction: column; gap: 10px; margin: 8px 0; }
 .list-item {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 14px 16px;
   color: var(--text);
+  font-size: 1.05rem;
+  box-shadow: var(--elev-sm);
 }
+button.list-item { text-align: left; width: 100%; }
 .list-item .chev { margin-left: auto; color: var(--muted); }
+.live-game-banner { box-shadow: var(--elev-sm), 0 0 0 1px var(--good); }
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .chip {
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
   background: var(--panel);
   border-radius: 999px;
-  padding: 8px 14px;
-  min-height: 40px;
-  font-size: 0.9rem;
+  padding: 8px 16px;
+  min-height: 42px;
+  font-size: 0.95rem;
+  box-shadow: var(--elev-sm);
 }
-.chip.on { background: var(--accent-dark); border-color: var(--accent); color: #fff; font-weight: 600; }
+.chip.on { background: var(--accent-dark); border-color: var(--accent); color: #fff; font-weight: 600; box-shadow: var(--cta-shadow); }
+
+/* Settings: light glass sheet groups. Nested rows stay flatter so we don't
+   stack elevation on elevation. */
+.sheet {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--elev-sm), inset 0 1px 0 var(--glass-highlight);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin: 14px 0;
+}
+.sheet > h2:first-child { margin-top: 0; }
+.sheet .list { gap: 8px; }
+.sheet .list-item {
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--hairline);
+}
+.sheet input,
+.sheet .chip:not(.on),
+.sheet button:not(.primary):not(.chip) {
+  box-shadow: none;
+}
 
 /* Strike zone grid */
 .zone-grid {
@@ -211,11 +326,15 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   min-height: 0;
   font-size: 0.9rem;
   color: var(--text);
+  box-shadow: none;
+  border: none;
 }
-.zone-in { background: var(--panel-2); }
+.zone-in { background: var(--panel-2); border: 1px solid var(--border); }
 .zone-out { background: #eef2f8; border: 1px dashed var(--border); color: var(--muted); }
 .zone-selected { outline: 3px solid var(--accent); outline-offset: -1px; font-weight: 700; }
 .zone-cell:disabled { opacity: 1; }
+
+.heat-card { padding: 12px 8px; }
 
 .game-menu-dropdown {
   position: absolute;
@@ -226,14 +345,14 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: var(--panel, #fff);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
   padding: 6px;
-  box-shadow: 0 4px 14px rgba(13, 21, 38, 0.18);
+  box-shadow: var(--elev-md);
   min-width: 150px;
 }
-.game-menu-dropdown button { width: 100%; text-align: left; }
+.game-menu-dropdown button { width: 100%; text-align: left; box-shadow: none; }
 
 /* Strike-zone outline + internal dividing lines, overlaid on top of the 3x3
    in-zone cells regardless of their fill color/number — subtle (not pure
@@ -256,7 +375,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 }
 
 /* Live game */
-.count-display { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.05em; }
+.count-display { font-size: 1.75rem; font-weight: 700; letter-spacing: 0.05em; }
 
 .inning-indicator { display: inline-flex; align-items: center; gap: 3px; }
 .inning-triangle {
@@ -266,7 +385,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 }
 .inning-triangle.up { border-bottom: 9px solid var(--text); }
 .inning-triangle.down { border-top: 9px solid var(--text); }
-.inning-number { font-weight: 700; font-size: 1rem; }
+.inning-number { font-weight: 700; font-size: 1.05rem; }
 
 .outs-tracker { display: inline-flex; gap: 4px; }
 .out-dot {
@@ -274,7 +393,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   border: 1.5px solid var(--text); background: transparent;
 }
 .out-dot.filled { background: var(--text); }
-.chip.small-chip { min-height: 32px; padding: 5px 12px; font-size: 0.8rem; }
+.chip.small-chip { min-height: 34px; padding: 5px 12px; font-size: 0.85rem; }
 
 /* Per-pitch scouting buttons */
 .pitch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -282,33 +401,36 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  justify-content: flex-start;
   gap: 5px;
   text-align: left;
-  padding: 10px 12px;
+  padding: 12px 14px;
+  min-height: 52px;
+  font-size: 1.05rem;
 }
 .pitch-stat .breakdown { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Result overlay floating over the plotted strike zone */
+/* Result overlay floating over the plotted strike zone.
+   OPAQUE on purpose: live logging happens outdoors in sun — no muddy blur. */
 .zone-wrap { position: relative; }
 .result-overlay {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  background: rgba(232, 238, 247, 0.5);
-  -webkit-backdrop-filter: blur(1px);
-  backdrop-filter: blur(1px);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 8px;
-  box-shadow: 0 -4px 16px rgba(13, 21, 38, 0.12);
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  padding: 10px;
+  box-shadow: var(--elev-md);
 }
 .pitch-stat.on { outline: 3px solid var(--accent); outline-offset: -1px; }
-.pitch-stat .breakdown { font-size: 0.8rem; }
+.pitch-stat .breakdown { font-size: 0.85rem; }
 .selected-pitch {
   background: var(--panel);
   border: 1px solid var(--accent);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: 12px;
+  padding: 12px 14px;
   margin: 8px 0;
+  box-shadow: var(--elev-sm);
 }
 .winbar {
   display: block;
@@ -324,23 +446,25 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 }
 .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .result-grid .wide { grid-column: 1 / -1; }
+.result-grid button { min-height: 52px; font-size: 1.05rem; }
 
-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--border); }
-th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--hairline); }
+th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .suggestion {
   border-left: 4px solid var(--good);
   background: var(--panel);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: 14px;
+  padding: 12px 14px;
   margin: 10px 0;
+  box-shadow: var(--elev-sm);
 }
-.suggestion .head { font-weight: 700; font-size: 1.05rem; }
+.suggestion .head { font-weight: 700; font-size: 1.12rem; }
 
-.stat-tile { flex: 1; text-align: center; padding: 10px 6px; margin: 0; }
-.stat-tile .stat-num { font-size: 1.25rem; font-weight: 700; }
+.stat-tile { flex: 1; text-align: center; padding: 14px 8px; margin: 0; }
+.stat-tile .stat-num { font-size: 1.5rem; font-weight: 700; }
 
 /* Lineup drag rows */
 /* Note: touch-action:none lives on .drag-handle only, not this row — the
@@ -356,15 +480,16 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   min-height: 40px; min-width: 40px; padding: 0;
   font-size: 1.3rem; line-height: 1; color: var(--muted);
   cursor: grab; touch-action: none;
+  box-shadow: none;
 }
 .drag-handle:active { cursor: grabbing; }
 .ghost-row { opacity: 0.75; border-style: dashed; }
 
-.pill { border-radius: 6px; padding: 2px 8px; font-size: 0.78rem; background: var(--panel-2); color: var(--muted); }
+.pill { border-radius: 6px; padding: 2px 8px; font-size: 0.8rem; background: var(--panel-2); color: var(--muted); }
 .good { color: var(--good); }
 .bad { color: var(--bad); }
 
-.empty { text-align: center; color: var(--muted); padding: 24px 12px; }
+.empty { text-align: center; color: var(--muted); padding: 28px 16px; font-size: 1.05rem; line-height: 1.45; }
 
 /* Transient "Ghost Batter — Out N" flash: fades in, holds, fades out while
    the auto-advance logs the ghost out and moves to the next real batter. */
@@ -377,9 +502,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .ghost-flash-overlay.static { animation: none; opacity: 1; cursor: pointer; }
 .ghost-flash-card {
   background: var(--panel, #fff); border-radius: 16px;
-  padding: 28px 40px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+  padding: 28px 40px; text-align: center; box-shadow: var(--elev-lg);
 }
-.ghost-flash-title { font-size: 1.4rem; font-weight: 700; font-style: italic; }
+.ghost-flash-title { font-size: 1.5rem; font-weight: 700; font-style: italic; }
 
 /* Modal overlay for in-game panels (Wrong batter?, Substitute, Change
    pitcher) that need to pop on top of the screen with their own close
@@ -396,8 +521,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .modal-overlay .card {
   width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto;
   margin-bottom: 12px;
+  background: var(--panel);
+  box-shadow: var(--elev-lg);
 }
-.ghost-flash-sub { margin-top: 6px; color: var(--muted); font-size: 1rem; }
+.ghost-flash-sub { margin-top: 6px; color: var(--muted); font-size: 1.05rem; }
 @keyframes ghost-flash-fade {
   0% { opacity: 0; }
   15% { opacity: 1; }
@@ -409,8 +536,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
    dialer-style grid so a coach can enter digits AND a comma separator
    without fighting the phone's native keyboard modes. */
 .numberpad-display {
-  min-height: 44px; padding: 10px 12px; border-radius: 8px;
-  background: var(--panel-2); font-size: 1.2rem; font-weight: 600;
+  min-height: 48px; padding: 10px 12px; border-radius: 12px;
+  background: var(--panel-2); font-size: 1.25rem; font-weight: 600;
   letter-spacing: 0.02em; word-break: break-all;
 }
 .numberpad-grid {
@@ -418,7 +545,60 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 .numberpad-key {
   min-height: 52px; font-size: 1.3rem; font-weight: 700;
-  border-radius: 10px; background: var(--panel-2); color: var(--text);
+  border-radius: 12px; background: var(--panel-2); color: var(--text);
   border: none;
+  box-shadow: var(--elev-sm);
 }
 .numberpad-key:active { background: var(--panel-3, #d8dee8); }
+
+/* Live logger safety net: fully opaque surfaces, no glass/blur.
+   Outdoor sun + translucency = unreadable. */
+.live-game .topbar {
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.live-game .card,
+.live-game .list-item,
+.live-game .selected-pitch,
+.live-game .suggestion,
+.live-game .game-menu-dropdown,
+.live-game .result-overlay,
+.live-game .modal-overlay .card,
+.live-game .ghost-flash-card,
+.live-game .pitch-stat {
+  background: var(--panel);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.live-game .chip.on { background: var(--accent-dark); }
+.live-game h2 { font-size: 1.35rem; }
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bottom-nav,
+  .sheet {
+    background: var(--panel);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .bottom-nav,
+  .sheet {
+    background: var(--panel);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app { animation: none; }
+  button:active, .btn:active { transform: none; }
+}
+
+.app {
+  animation: app-in 0.28s ease-out;
+}
+@keyframes app-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

@@ -23,9 +23,9 @@ export default function Home() {
   if (!opponents || !activeGames) return null
 
   return (
-    <main>
+    <main className="home-page">
       {activeGames.map((g) => (
-        <Link key={g.id} to={`/game/${g.id}`} className="list-item" style={{ borderColor: 'var(--good)' }}>
+        <Link key={g.id} to={`/game/${g.id}`} className="list-item live-game-banner">
           <span className="good">●</span>
           <span>
             Game in progress — {opponents.find((o) => o.id === g.opponentId)?.name ?? 'Unknown'}{' '}
@@ -35,7 +35,7 @@ export default function Home() {
         </Link>
       ))}
 
-      <div className="row" style={{ marginTop: 12 }}>
+      <div className="row hero-actions">
         <Link to="/new-game" className="btn primary grow">▶ Start a game</Link>
         <Link to="/pitchers" className="btn grow">My pitchers{pitcherCount ? ` (${pitcherCount})` : ''}</Link>
       </div>

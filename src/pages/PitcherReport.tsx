@@ -45,7 +45,7 @@ export default function PitcherReport() {
   }
 
   return (
-    <main>
+    <main className="report-page">
       <button className="small" style={{ marginTop: 10 }} onClick={() => navigate(-1)}>‹ Back</button>
       <h1>
         {pitcher.number ? `#${pitcher.number} ` : ''}{fullName(pitcher)}{' '}
@@ -75,7 +75,9 @@ export default function PitcherReport() {
           </div>
 
           <h2>Locations</h2>
-          <ZoneGrid heat={heat} granular={settings.capture.granularZones} />
+          <div className="card heat-card">
+            <ZoneGrid heat={heat} granular={settings.capture.granularZones} />
+          </div>
 
           {command.total > 0 && (
             <>
@@ -139,12 +141,14 @@ export default function PitcherReport() {
                       </button>
                     ))}
                   </div>
-                  <ZoneGrid
-                    grouping={grouping}
-                    granular
-                    selected={drillDownZone}
-                    onSelect={(z) => setDrillDownZone(drillDownZone === z ? null : z)}
-                  />
+                  <div className="card heat-card">
+                    <ZoneGrid
+                      grouping={grouping}
+                      granular
+                      selected={drillDownZone}
+                      onSelect={(z) => setDrillDownZone(drillDownZone === z ? null : z)}
+                    />
+                  </div>
                   {drillDown && (
                     <p className="muted" style={{ marginTop: 4 }}>
                       Showing landing spots for <strong style={{ color: 'var(--text)' }}>{drillDown.count}</strong> pitches
