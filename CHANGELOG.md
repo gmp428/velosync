@@ -4,6 +4,25 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-09-22
+
+### Added
+- Team/Roster page: batting order section is now collapsible (collapsed
+  by default), with a bigger, bolder toggle arrow so the open/closed
+  state is clear at a glance. Roster list now has a subtitle pointing
+  coaches to tap a batter for their full report.
+- BatterReport: a numeric-percentage color legend (blue = worst on the
+  left, red = best on the right) sits above the zone heat map. Tapping
+  a zone now drills into a pitch-type + result breakdown for that
+  specific zone (tap again to close).
+- PitcherReport: pitch-type filter chips in the command-grouping section
+  are now colored by that pitch type's own overall tight-vs-scattered
+  score, using the same 5-color scale as the heat map — lets a coach see
+  which pitches are consistently tight vs. scattered without switching
+  through each one. Both grouping legends (BatterReport's percentage
+  strip, PitcherReport's Tight/Scattered strip) now render blue-left,
+  red-right for visual consistency.
+
 ## [0.14.0] — 2026-09-12
 
 ### Added
