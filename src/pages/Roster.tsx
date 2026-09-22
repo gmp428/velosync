@@ -286,12 +286,15 @@ export default function Roster() {
       <h1>{opponent.name}</h1>
 
       <h2
-        style={{ marginTop: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+        style={{
+          marginTop: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+          fontWeight: showBattingOrder ? 700 : 400,
+        }}
         onClick={() => setShowBattingOrder((v) => !v)}
         role="button"
         aria-expanded={showBattingOrder}
       >
-        <span className="chev">{showBattingOrder ? '▾' : '▸'}</span>
+        <span className="chev-collapse">{showBattingOrder ? '▾' : '▸'}</span>
         Batting order — drag ≡ to reorder
       </h2>
       {showBattingOrder && (

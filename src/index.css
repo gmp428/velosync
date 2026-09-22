@@ -178,6 +178,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   color: var(--text);
 }
 .list-item .chev { margin-left: auto; color: var(--muted); }
+.chev-collapse { font-size: 1.4em; line-height: 1; color: var(--text); }
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .chip {
