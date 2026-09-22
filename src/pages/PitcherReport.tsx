@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, displayName, fullName, getSettings, pitcherArsenal, saveSettings, type Zone, zoneLabel } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
 import {
-  aggregate, byPitchType, byZoneBattle, commandAgg, commandGrouping, commandRate, filterByWindow, GROUPING_BANDS, pct, successRate,
+  aggregate, byPitchType, byZoneBattle, commandAgg, commandGrouping, commandGroupingByPitchType, commandRate, filterByWindow, GROUPING_BANDS, groupingColor, pct, successRate,
   WINDOW_LABELS, type TimeWindow,
 } from '../lib/stats'
 
@@ -36,6 +36,7 @@ export default function PitcherReport() {
   const command = commandAgg(viewPitches, settings.commandMatchMode, resolution)
   const groupingPitches = groupingPitchType === 'all' ? viewPitches : viewPitches.filter((p) => p.pitchTypeId === groupingPitchType)
   const grouping = resolution === 'granular' ? commandGrouping(groupingPitches) : new Map()
+  const groupingByPitchType = resolution === 'granular' ? commandGroupingByPitchType(viewPitches) : new Map<string, number>()
   const drillDown = drillDownZone !== null ? grouping.get(drillDownZone) : undefined
 
   // Per-batter results for this pitcher
@@ -133,11 +134,27 @@ export default function PitcherReport() {
                     <button className={`chip ${groupingPitchType === 'all' ? 'on' : ''}`} onClick={() => { setGroupingPitchType('all'); setDrillDownZone(null) }}>
                       All pitches
                     </button>
-                    {pitchTypes.filter((t) => typeAggs.has(t.id)).map((t) => (
-                      <button key={t.id} className={`chip ${groupingPitchType === t.id ? 'on' : ''}`} onClick={() => { setGroupingPitchType(t.id); setDrillDownZone(null) }}>
-                        {t.name}
-                      </button>
-                    ))}
+                    {pitchTypes.filter((t) => typeAggs.has(t.id)).map((t) => {
+                      const typeGrouping = groupingByPitchType.get(t.id)
+                      const isOn = groupingPitchType === t.id
+                      const colorStyle = typeGrouping !== undefined
+                        ? {
+                            background: groupingColor(typeGrouping).bg,
+                            color: groupingColor(typeGrouping).fg,
+                            ...(isOn ? { boxShadow: '0 0 0 2px #0d1526, 0 0 0 4px #ffffff' } : {}),
+                          }
+                        : undefined
+                      return (
+                        <button
+                          key={t.id}
+                          className={`chip ${isOn ? 'on' : ''}`}
+                          style={colorStyle}
+                          onClick={() => { setGroupingPitchType(t.id); setDrillDownZone(null) }}
+                        >
+                          {t.name}
+                        </button>
+                      )
+                    })}
                   </div>
                   <ZoneGrid
                     grouping={grouping}

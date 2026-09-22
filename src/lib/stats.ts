@@ -383,6 +383,35 @@ export function commandGrouping(pitches: Pitch[]): Map<Zone, GroupingCell> {
   return result
 }
 
+// Same underlying per-pitch Chebyshev distance as commandGrouping(), but
+// aggregated by PITCH TYPE instead of by intended zone — one overall
+// tightness score per pitch type, used to color-code the pitch-type filter
+// chips above the grouping heat map. Same granular-only precondition as
+// commandGrouping(): caller must already have normalized/filtered pitches
+// to granular resolution (see PitcherReport.tsx's groupingPitches).
+export function commandGroupingByPitchType(pitches: Pitch[]): Map<string, number> {
+  const byType = new Map<string, Pitch[]>()
+  for (const p of pitches) {
+    if (p.intendedZone === undefined) continue
+    const arr = byType.get(p.pitchTypeId)
+    if (arr) arr.push(p)
+    else byType.set(p.pitchTypeId, [p])
+  }
+  const result = new Map<string, number>()
+  for (const [pitchTypeId, ps] of byType) {
+    let sum = 0
+    let n = 0
+    for (const p of ps) {
+      const d = chebyshevDistance(p.intendedZone as Zone, p.zone)
+      if (d === null) continue
+      sum += d
+      n++
+    }
+    if (n > 0) result.set(pitchTypeId, sum / n)
+  }
+  return result
+}
+
 // Fixed 5-color scale (G's exact spec, not colorblind-safe by his explicit
 // choice/override — see session history): red (tightest/best) -> orange ->
 // yellow -> green -> blue (most scattered/worst), quantized into 5 solid
