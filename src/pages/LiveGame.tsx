@@ -121,6 +121,35 @@ async function openNextRealAtBat(
   return { ghostOutNums, opened: false }
 }
 
+// Distinct pitcherIds with at least one Pitch logged during this game's
+// ending half-inning, in the order they FIRST appeared (by pitch timestamp).
+// Pitch records don't carry their own `half` field, so this joins through
+// the at-bats that happened in that half (same (a.half ?? half) === half
+// fallback this file already uses elsewhere for at-bat/out scoping) and
+// pulls pitches for those at-bats. This naturally covers a mid-half
+// pitching change: if two pitchers threw in the same half, both come back,
+// in the order they appeared. Returns [] for a fully ghost-out half with no
+// real pitches logged.
+async function pitchersForHalf(gameId: string, inning: number, half: Half): Promise<string[]> {
+  const [atBats, pitches] = await Promise.all([
+    db.atBats.where('gameId').equals(gameId).toArray(),
+    db.pitches.where('gameId').equals(gameId).toArray(),
+  ])
+  const abIds = new Set(
+    atBats
+      .filter((a) => (a.inning ?? inning) === inning && (a.half ?? half) === half)
+      .map((a) => a.id),
+  )
+  const matching = pitches
+    .filter((p) => abIds.has(p.atBatId))
+    .sort((a, b) => a.ts - b.ts || a.seq - b.seq)
+  const seen: string[] = []
+  for (const p of matching) {
+    if (!seen.includes(p.pitcherId)) seen.push(p.pitcherId)
+  }
+  return seen
+}
+
 export default function LiveGame() {
   const { id } = useParams()
   const gameId = id!
@@ -219,6 +248,28 @@ export default function LiveGame() {
     newHalf: Half
     pitcherId: string
   } | null>(null)
+  // Required earned-runs capture pop-up shown BEFORE the "Middle/End of the
+  // Nth" overlay above, for the half-inning that just ended. One row per
+  // pitcher who actually threw during that half (handles a mid-half
+  // pitching change — both pitchers get asked, in the order they first
+  // appeared). Holds the already-computed inningTransition payload so it
+  // can be shown right after this pop-up is confirmed. There is NO skip —
+  // the coach must tap Save (even to record 0 runs) before the game can
+  // proceed; see confirmEarnedRuns/the modal render below.
+  const [earnedRunsPrompt, setEarnedRunsPrompt] = useState<{
+    inning: number
+    half: Half
+    pitcherIds: string[]
+    values: Record<string, number>
+    pendingTransition: {
+      label: string
+      order: string[]
+      resumeIdx: number
+      newInning: number
+      newHalf: Half
+      pitcherId: string
+    }
+  } | null>(null)
   const bootingRef = useRef(false)
 
   // If a pitcher change removes the selected pitch type from the arsenal, clear it
@@ -247,19 +298,77 @@ export default function LiveGame() {
   }
 
   // Common handling for whatever openNextRealAtBat found: play the ghost
-  // flashes it walked past, then if a half ended, show the tap-to-continue
-  // overlay (frozen with everything needed to resume once tapped) instead of
-  // opening the next at-bat right away.
+  // flashes it walked past, then if a half ended, route through the
+  // required earned-runs pop-up (or straight to the inning-transition
+  // overlay if that half had zero real pitches logged — a fully ghost-out
+  // half, nobody to ask about) instead of opening the next at-bat right away.
   const handleAdvanceResult = async (
     result: Awaited<ReturnType<typeof openNextRealAtBat>>, order: string[], pitcherId: string,
   ) => {
     await flashGhosts(result.ghostOutNums)
     if (result.transition) {
-      setInningTransition({
-        label: result.transition.label, order, resumeIdx: result.transition.resumeIdx,
-        newInning: result.transition.newInning, newHalf: result.transition.newHalf, pitcherId,
-      })
+      const t = result.transition
+      const endedInning = t.newInning - 1 // checkInningEnd never changes half — see its comment
+      const endedHalf = t.newHalf
+      await beginInningTransition(
+        { label: t.label, order, resumeIdx: t.resumeIdx, newInning: t.newInning, newHalf: t.newHalf, pitcherId },
+        endedInning, endedHalf,
+      )
     }
+  }
+
+  // Decides whether the required earned-runs pop-up needs to show before the
+  // "Middle/End of the Nth" overlay, for the half-inning that just ended.
+  // Queries every distinct pitcher who threw during that half; if none did
+  // (a fully ghost-out half — no real pitches at all), skips straight to the
+  // existing inning-transition overlay since there's nobody to ask about.
+  const beginInningTransition = async (
+    transition: { label: string; order: string[]; resumeIdx: number; newInning: number; newHalf: Half; pitcherId: string },
+    endedInning: number, endedHalf: Half,
+  ) => {
+    const pitcherIds = await pitchersForHalf(gameId, endedInning, endedHalf)
+    if (pitcherIds.length === 0) {
+      setInningTransition(transition)
+      return
+    }
+    setEarnedRunsPrompt({
+      inning: endedInning,
+      half: endedHalf,
+      pitcherIds,
+      values: Object.fromEntries(pitcherIds.map((pid) => [pid, 0])),
+      pendingTransition: transition,
+    })
+  }
+
+  // Coach tapped Save on the earned-runs pop-up — writes one EarnedRun row
+  // per listed pitcher (whatever the stepper currently shows, INCLUDING 0 —
+  // this is the only way past the pop-up, there is no skip/backdrop-dismiss
+  // path) then proceeds to the existing inning-transition overlay.
+  const confirmEarnedRuns = async () => {
+    const prompt = earnedRunsPrompt
+    if (!prompt) return
+    await db.earnedRuns.bulkAdd(
+      prompt.pitcherIds.map((pitcherId) => ({
+        id: newId(),
+        gameId,
+        pitcherId,
+        inning: prompt.inning,
+        half: prompt.half,
+        runs: prompt.values[pitcherId] ?? 0,
+        updatedAt: now(),
+        ...pendingSync(),
+      })),
+    )
+    setEarnedRunsPrompt(null)
+    setInningTransition(prompt.pendingTransition)
+  }
+
+  const adjustEarnedRuns = (pitcherId: string, delta: number) => {
+    setEarnedRunsPrompt((cur) => {
+      if (!cur) return cur
+      const next = Math.max(0, (cur.values[pitcherId] ?? 0) + delta)
+      return { ...cur, values: { ...cur.values, [pitcherId]: next } }
+    })
   }
 
   // Coach tapped past the "Middle/End of the Nth" message — resume opening
@@ -537,12 +646,15 @@ export default function LiveGame() {
       }
       if (transitionLabel) {
         const curIdx = liveOrder.indexOf(openAtBat.batterId)
-        setInningTransition({
-          label: transitionLabel, order: liveOrder,
-          resumeIdx: curIdx !== -1 ? (curIdx + 1) % liveOrder.length : 0,
-          newInning: nextInning, newHalf: nextHalf,
-          pitcherId: game.currentPitcherId ?? openAtBat.pitcherId,
-        })
+        await beginInningTransition(
+          {
+            label: transitionLabel, order: liveOrder,
+            resumeIdx: curIdx !== -1 ? (curIdx + 1) % liveOrder.length : 0,
+            newInning: nextInning, newHalf: nextHalf,
+            pitcherId: game.currentPitcherId ?? openAtBat.pitcherId,
+          },
+          curInning, half,
+        )
       } else {
         // Auto-advance: open the next batter's at-bat per the lineup order,
         // auto-logging (and skipping past) any ghost-out slots in between.
@@ -629,6 +741,38 @@ export default function LiveGame() {
           <div className="ghost-flash-card">
             <div className="ghost-flash-title">Ghost Batter</div>
             <div className="ghost-flash-sub">Out {ghostFlash}</div>
+          </div>
+        </div>
+      )}
+      {earnedRunsPrompt && (
+        <div className="modal-overlay">
+          <div className="card stack" onClick={(e) => e.stopPropagation()}>
+            <div className="row spread">
+              <strong>
+                Earned runs — {earnedRunsPrompt.half === 'top' ? 'Top' : 'Bottom'} of the {ordinal(earnedRunsPrompt.inning)}
+              </strong>
+            </div>
+            <p className="muted" style={{ margin: 0 }}>
+              Record earned runs allowed this half for each pitcher who threw. This is required —
+              tap Save (even for 0) to continue.
+            </p>
+            <div className="list">
+              {earnedRunsPrompt.pitcherIds.map((pid) => {
+                const p = pitchers?.find((x) => x.id === pid)
+                const val = earnedRunsPrompt.values[pid] ?? 0
+                return (
+                  <div key={pid} className="list-item row spread" style={{ width: '100%' }}>
+                    <span>{p?.number ? `#${p.number} ` : ''}{displayName(p)}</span>
+                    <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+                      <button className="small" onClick={() => adjustEarnedRuns(pid, -1)}>-</button>
+                      <span style={{ minWidth: 20, textAlign: 'center', fontWeight: 700 }}>{val}</span>
+                      <button className="small" onClick={() => adjustEarnedRuns(pid, 1)}>+</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <button onClick={confirmEarnedRuns}>Save</button>
           </div>
         </div>
       )}

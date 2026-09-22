@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, displayName, fullName, getSettings, pitcherArsenal, saveSettings, type Zone, zoneLabel } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
 import {
-  aggregate, byPitchType, byZoneBattle, commandAgg, commandGrouping, commandGroupingByPitchType, commandRate, filterByWindow, GROUPING_BANDS, groupingColor, pct, successRate,
+  aggregate, byPitchType, byZoneBattle, commandAgg, commandGrouping, commandGroupingByPitchType, commandRate, filterByWindow, gameIdsForWindow, GROUPING_BANDS, groupingColor, pct, successRate,
   WINDOW_LABELS, type TimeWindow,
 } from '../lib/stats'
 
@@ -21,12 +21,13 @@ export default function PitcherReport() {
   const allBatters = useLiveQuery(() => db.batters.toArray(), [])
   const pitchTypes = useLiveQuery(() => db.pitchTypes.toArray(), [])
   const settings = useLiveQuery(() => getSettings(), [])
+  const earnedRuns = useLiveQuery(() => db.earnedRuns.where('pitcherId').equals(pitcherId).toArray(), [pitcherId])
 
   const [win, setWin] = useState<TimeWindow>('all')
   const [groupingPitchType, setGroupingPitchType] = useState<string | 'all'>('all')
   const [drillDownZone, setDrillDownZone] = useState<Zone | null>(null)
 
-  if (!pitcher || !pitches || !allGames || !allBatters || !pitchTypes || !settings) return null
+  if (!pitcher || !pitches || !allGames || !allBatters || !pitchTypes || !settings || !earnedRuns) return null
 
   const viewPitches = filterByWindow(pitches, allGames, win)
   const overall = aggregate(viewPitches)
@@ -38,6 +39,19 @@ export default function PitcherReport() {
   const grouping = resolution === 'granular' ? commandGrouping(groupingPitches) : new Map()
   const groupingByPitchType = resolution === 'granular' ? commandGroupingByPitchType(viewPitches) : new Map<string, number>()
   const drillDown = drillDownZone !== null ? grouping.get(drillDownZone) : undefined
+
+  // Raw earned-runs total for this pitcher, respecting the same time-window
+  // filter as the pitch-based stats above. EarnedRun rows aren't Pitch
+  // records, so filterByWindow (which operates on Pitch[]) doesn't apply
+  // directly — reuse the same underlying "which games are in this window"
+  // set (gameIdsForWindow, driven off this pitcher's own pitches, same as
+  // every other stat on this page) and match EarnedRun rows by gameId.
+  // Deliberately just a raw sum — no ERA formula, that's separate/later work.
+  const earnedRunsGameIds = gameIdsForWindow(pitches, allGames, win)
+  const earnedRunsInWindow = earnedRunsGameIds === null
+    ? earnedRuns
+    : earnedRuns.filter((r) => earnedRunsGameIds.has(r.gameId))
+  const totalEarnedRuns = earnedRunsInWindow.reduce((sum, r) => sum + r.runs, 0)
 
   // Per-batter results for this pitcher
   const byBatter = new Map<string, typeof overall>()
@@ -73,6 +87,10 @@ export default function PitcherReport() {
             <span>{overall.total} pitches</span>
             <span className="good">{pct(successRate(overall))} success</span>
             <span className={overall.hits > 0 ? 'bad' : 'muted'}>{overall.hits} hits allowed</span>
+          </div>
+
+          <div className="card row spread">
+            <span>Earned runs: {totalEarnedRuns}</span>
           </div>
 
           <h2>Locations</h2>

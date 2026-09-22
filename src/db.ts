@@ -378,6 +378,23 @@ export interface Pitch {
   syncedAt?: number | null
 }
 
+// A coach's manual capture of how many earned runs a pitcher allowed during
+// ONE specific half-inning. Deliberately raw/manual — this app does NOT try
+// to derive earned runs automatically from base-runner/scoring logic (too
+// error-prone to compute reliably). ERA and any season-scoped filtering are
+// separate, later pieces of work; this is only the capture + a raw total.
+export interface EarnedRun {
+  id: string
+  gameId: string
+  pitcherId: string
+  inning: number
+  half: 'top' | 'bottom' // half that JUST ENDED (the half these runs are attributed to)
+  runs: number
+  updatedAt: number
+  syncStatus: SyncStatus
+  syncedAt?: number | null
+}
+
 // ---------- App settings (logging detail level) ----------
 // A single global preference row (id: 'app') controlling how much a coach logs
 // per pitch. `capture` flags gate individual capture steps; a preset sets a
@@ -467,6 +484,7 @@ export const db = new Dexie('pitch-tracker-v2') as Dexie & {
   pitches: EntityTable<Pitch, 'id'>
   settings: EntityTable<AppSettings, 'id'>
   substitutions: EntityTable<Substitution, 'id'>
+  earnedRuns: EntityTable<EarnedRun, 'id'>
 }
 
 db.version(1).stores({
@@ -561,10 +579,18 @@ db.version(7).stores({
 // No data migration needed -- linkGroupId is optional and undefined on
 // every existing row, which is exactly the correct "not linked" state.
 
+// v8 adds an earnedRuns table: a coach's raw manual capture of "how many
+// earned runs did pitcher X allow this half-inning", entered via a required
+// pop-up shown at the end of each half. Purely additive -- no existing
+// store is touched, and no ERA/season logic is implemented here (deferred).
+db.version(8).stores({
+  earnedRuns: 'id, gameId, pitcherId, inning, half, updatedAt, syncStatus',
+})
+
 // Discard the legacy integer-keyed database from before the UUID switch.
 Dexie.delete('pitch-tracker').catch(() => {})
 
-const SYNC_TABLES = ['opponents', 'batters', 'pitchers', 'pitchTypes', 'games', 'atBats', 'pitches', 'substitutions'] as const
+const SYNC_TABLES = ['opponents', 'batters', 'pitchers', 'pitchTypes', 'games', 'atBats', 'pitches', 'substitutions', 'earnedRuns'] as const
 
 for (const name of SYNC_TABLES) {
   const table = db.table(name)
@@ -693,7 +719,7 @@ export function outcomeLabel(o: AtBatOutcome | InPlayOutcome): string {
 
 export interface BackupFile {
   app: 'pitch-tracker'
-  version: number // 2 = pre-sync-meta; 3 = includes syncStatus/syncedAt; 4 = includes substitutions
+  version: number // 2 = pre-sync-meta; 3 = includes syncStatus/syncedAt; 4 = includes substitutions; 5 = includes earnedRuns
   exportedAt: string
   opponents: Opponent[]
   batters: Batter[]
@@ -704,6 +730,7 @@ export interface BackupFile {
   pitches: Pitch[]
   settings?: AppSettings[] // optional: older backups predate app settings
   substitutions?: Substitution[] // optional: older backups predate substitutions
+  earnedRuns?: EarnedRun[] // optional: older backups predate earned-runs capture
 }
 
 export async function exportAll(): Promise<BackupFile> {
@@ -720,6 +747,7 @@ export async function exportAll(): Promise<BackupFile> {
     pitches: await db.pitches.toArray(),
     settings: await db.settings.toArray(),
     substitutions: await db.substitutions.toArray(),
+    earnedRuns: await db.earnedRuns.toArray(),
   }
 }
 
@@ -727,11 +755,11 @@ export async function importAll(data: BackupFile): Promise<void> {
   if (data.app !== 'pitch-tracker' || !Array.isArray(data.pitches)) {
     throw new Error('This file does not look like a VeloSync backup.')
   }
-  await db.transaction('rw', [db.opponents, db.batters, db.pitchers, db.pitchTypes, db.games, db.atBats, db.pitches, db.settings, db.substitutions], async () => {
+  await db.transaction('rw', [db.opponents, db.batters, db.pitchers, db.pitchTypes, db.games, db.atBats, db.pitches, db.settings, db.substitutions, db.earnedRuns], async () => {
     await Promise.all([
       db.opponents.clear(), db.batters.clear(), db.pitchers.clear(),
       db.pitchTypes.clear(), db.games.clear(), db.atBats.clear(), db.pitches.clear(),
-      db.settings.clear(), db.substitutions.clear(),
+      db.settings.clear(), db.substitutions.clear(), db.earnedRuns.clear(),
     ])
     await db.opponents.bulkAdd(data.opponents.map(hydrateSync))
     await db.batters.bulkAdd(hydrateBatterSortIndex(data.batters.map(hydrateSync)))
@@ -745,6 +773,8 @@ export async function importAll(data: BackupFile): Promise<void> {
     if (data.settings?.length) await db.settings.bulkAdd(data.settings)
     // Older backups predate substitutions — same fallback.
     if (data.substitutions?.length) await db.substitutions.bulkAdd(data.substitutions.map(hydrateSync))
+    // Older backups predate earned-runs capture — same fallback.
+    if (data.earnedRuns?.length) await db.earnedRuns.bulkAdd(data.earnedRuns.map(hydrateSync))
   })
 }
 
