@@ -17,7 +17,7 @@ function Topbar() {
     <header className="topbar">
       <div className="topbar-row">
         <Link to="/" className="brand" aria-label="Home">
-          <Logo />
+          <Logo dark />
           {brandBadge && <span className="brand-pr">{brandBadge}</span>}
         </Link>
         {rightAction}

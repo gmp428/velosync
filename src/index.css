@@ -6,10 +6,27 @@
   --border: #bcc7d8;
   --text: #0d1526;      /* near-black, maximum contrast */
   --muted: #45536a;
-  --accent: #1d4ed8;    /* strong blue links */
-  --accent-dark: #1d4ed8; /* primary-button background */
+  --accent: #C8001A;        /* brand red, was #1d4ed8 */
+  --accent-dark: #C8001A;   /* primary-button fill, was #1d4ed8 */
+  --accent-pressed: #9c0014; /* :active state, and CTA shadow tint */
   --good: #15803d;
   --bad: #c0242c;
+
+  /* Permanent dark chrome ("broadcast bezel") for header + bottom nav.
+     Intentionally NOT theme-aware — stays #0d1117 even if the app ever
+     ships a light/dark toggle, same idea as a scoreboard frame around a
+     bright field. Never reuse --panel/--bg for these two components. */
+  --bezel: #0d1117;
+  --bezel-ink: #ffffff;
+  --bezel-muted: #8890a0;       /* inactive nav label/icon — 4.6:1 on bezel */
+  --bezel-hairline: rgba(255, 255, 255, 0.08);
+
+  /* Dedicated selection-ring color for the strike-zone grid.
+     MUST NOT reuse --accent — see .zone-selected below for why. */
+  --select-ring: #0d1117;
+  --select-ring-outer: #ffffff;
+
+  --radius-cut: 14px; /* corner-cut motif size */
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -43,11 +60,9 @@ a { color: var(--accent); text-decoration: none; }
   flex-direction: column;
   gap: 2px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--border);
   margin-bottom: 10px;
-  position: sticky;
-  top: 0;
-  background: var(--bg);
+  background: var(--bezel);
+  box-shadow: inset 0 -3px 0 var(--accent);
   z-index: 10;
 }
 .topbar-row {
@@ -59,10 +74,10 @@ a { color: var(--accent); text-decoration: none; }
 .topbar-subheader {
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--bezel-muted);
   padding-left: 2px;
 }
-.topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--bezel-ink); display: flex; align-items: center; gap: 8px; }
 .topbar .brand img { height: 40px; width: auto; display: block; }
 /* PR number on preview builds; package version (vX.Y.Z) on main. */
 .topbar .brand-pr {
@@ -90,8 +105,8 @@ a { color: var(--accent); text-decoration: none; }
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  background: var(--panel);
-  border-top: 1px solid var(--border);
+  background: var(--bezel);
+  border-top: 1px solid var(--bezel-hairline);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .bottom-nav-tab {
@@ -103,12 +118,20 @@ a { color: var(--accent); text-decoration: none; }
   gap: 2px;
   padding: 8px 4px 6px;
   min-height: 51px;
-  color: var(--muted);
+  color: var(--bezel-muted);
   font-size: 0.7rem;
   font-weight: 600;
   text-decoration: none;
 }
-.bottom-nav-tab.active { color: var(--accent); }
+.bottom-nav-tab.active { color: var(--bezel-ink); }
+.bottom-nav-tab.active::after {
+  content: '';
+  display: block;
+  width: 18px; height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  margin-top: 3px;
+}
 
 button, .btn {
   font: inherit;
@@ -122,7 +145,18 @@ button, .btn {
   text-align: center;
 }
 button:active, .btn:active { transform: scale(0.98); }
-button.primary, .btn.primary { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; font-weight: 600; }
+button.primary, .btn.primary {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: #fff;
+  font-weight: 600;
+  clip-path: polygon(0 0, calc(100% - var(--radius-cut)) 0, 100% var(--radius-cut), 100% 100%, 0 100%);
+  border-radius: 0;
+}
+button.primary:active, .btn.primary:active { background: var(--accent-pressed); border-color: var(--accent-pressed); }
+.hero-actions .btn.primary {
+  box-shadow: 0 8px 20px rgba(200, 0, 26, 0.35);
+}
 button.danger { border-color: #e0a3a3; color: var(--bad); }
 
 .warning { color: #a66b00; font-size: 0.9rem; }
@@ -144,9 +178,10 @@ button:disabled { opacity: 0.45; cursor: default; }
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
   padding: 12px;
   margin: 10px 0;
+  clip-path: polygon(0 0, calc(100% - var(--radius-cut)) 0, 100% var(--radius-cut), 100% 100%, 0 100%);
+  border-radius: 0;
 }
 
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -216,7 +251,12 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
 }
 .zone-in { background: var(--panel-2); }
 .zone-out { background: #eef2f8; border: 1px dashed var(--border); color: var(--muted); }
-.zone-selected { outline: 3px solid var(--accent); outline-offset: -1px; font-weight: 700; }
+.zone-selected {
+  outline: 3px solid var(--select-ring-outer); /* white */
+  outline-offset: -6px;
+  box-shadow: inset 0 0 0 3px var(--select-ring); /* near-black, inset */
+  font-weight: 700;
+}
 .zone-cell:disabled { opacity: 1; }
 
 .game-menu-dropdown {
@@ -303,7 +343,7 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   padding: 8px;
   box-shadow: 0 -4px 16px rgba(13, 21, 38, 0.12);
 }
-.pitch-stat.on { outline: 3px solid var(--accent); outline-offset: -1px; }
+.pitch-stat.on { outline: 3px solid var(--select-ring); outline-offset: -1px; }
 .pitch-stat .breakdown { font-size: 0.8rem; }
 .selected-pitch {
   background: var(--panel);
@@ -341,7 +381,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 .suggestion .head { font-weight: 700; font-size: 1.05rem; }
 
-.stat-tile { flex: 1; text-align: center; padding: 10px 6px; margin: 0; }
+.stat-tile {
+  flex: 1; text-align: center; padding: 10px 6px; margin: 0;
+  clip-path: polygon(0 0, calc(100% - var(--radius-cut)) 0, 100% var(--radius-cut), 100% 100%, 0 100%);
+  border-radius: 0;
+}
 .stat-tile .stat-num { font-size: 1.25rem; font-weight: 700; }
 
 /* Lineup drag rows */
@@ -367,6 +411,15 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .bad { color: var(--bad); }
 
 .empty { text-align: center; color: var(--muted); padding: 24px 12px; }
+
+.error-card {
+  background: #fdf0ef;
+  border: 1px solid #e3a39c;
+  color: #7a1a12;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 10px 0;
+}
 
 /* Transient "Ghost Batter — Out N" flash: fades in, holds, fades out while
    the auto-advance logs the ghost out and moves to the next real batter. */
@@ -398,6 +451,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .modal-overlay .card {
   width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto;
   margin-bottom: 12px;
+  /* Corner-cut motif is excluded from modals — plain rounded rect here. */
+  clip-path: none;
+  border-radius: 12px;
 }
 .ghost-flash-sub { margin-top: 6px; color: var(--muted); font-size: 1rem; }
 @keyframes ghost-flash-fade {

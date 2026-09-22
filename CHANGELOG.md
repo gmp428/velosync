@@ -4,6 +4,42 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+### Changed
+- **Visual redesign — "VeloSync Athletic" (Direction B)**: the live app now
+  matches the brand mark instead of the leftover iOS-blue "Pitch Tracker"
+  prototype look.
+  - Interactive accent swapped from iOS system blue (`#1d4ed8`) to brand red
+    (`#C8001A`), with a dedicated pressed state (`#9c0014`) for primary
+    buttons and CTA shadow tint.
+  - Header and bottom nav now use a permanent dark "broadcast bezel" chrome
+    (`#0d1117`) that does not follow light/dark theme — a stadium-scoreboard
+    frame around the bright field of the rest of the app. Header gets a 3px
+    red bottom edge; the active bottom-nav tab gets a small red underline
+    chip instead of colored text/background.
+  - Header logo swapped to the dark-background lockup
+    (`public/logos/velosync-badge-dark.svg`) so it stays legible on the new
+    dark bezel; `Logo` takes a new `dark` prop.
+  - Cards, primary buttons, and stat tiles get a new angled "shield notch"
+    corner-cut motif (clip-path) in place of their rounded corners. List
+    items, chips, the zone grid, and modals are unaffected.
+  - Added a new `.error-card` style for future inline error banners (not
+    wired up to any UI yet).
+  - **Strike-zone / pitch-type selection indicator redesign (approved)**:
+    `.zone-selected` and `.pitch-stat.on` no longer use the brand accent for
+    their outline. With the accent now red, a selected zone cell that also
+    happened to render heat-map red would have an invisible outline. Both
+    now use a dedicated two-tone white/near-black ring (`--select-ring`,
+    `--select-ring-outer`) that stays legible against all five heat-map
+    colors.
+  - `--bad` (danger/undo/end-game) is close in hue to the new brand-red
+    `--accent` but ships as-is (approved) — `button.danger` remains
+    outline-only with no fill, which keeps it visually distinct from the
+    solid-fill primary CTA. Revisit only if this proves confusing in real
+    field use.
+  - No taps, confirms, routes, or toggles changed; the three-tap logging
+    flow in `LiveGame.tsx` and the heat-map color scale in `ZoneGrid.tsx` /
+    `src/lib/stats.ts` are untouched.
+
 ## [0.15.0] — 2026-09-22
 
 ### Added
