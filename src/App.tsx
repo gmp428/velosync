@@ -1,8 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Outlet, matchPath, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
 import BottomNav from './components/BottomNav'
+import SplashIntro from './components/SplashIntro'
 import { HeaderExtraProvider, useHeaderExtraState } from './lib/headerExtra'
+import { resolveIntroMode, type IntroMode } from './lib/intro'
 
 const prMatch = import.meta.env.BASE_URL.match(/\/pr\/(\d+)\//)
 const prNumber = prMatch?.[1]
@@ -26,6 +28,7 @@ function Topbar() {
 export default function App() {
   const { pathname } = useLocation()
   const liveGame = Boolean(matchPath('/game/:id', pathname))
+  const [intro, setIntro] = useState<IntroMode | null>(() => resolveIntroMode())
 
   // Mobile Safari/WebKit PWA bug: navigating "back" to a long scrollable
   // list (e.g. Roster) can restore the previous scroll offset before the
@@ -42,6 +45,7 @@ export default function App() {
 
   return (
     <HeaderExtraProvider>
+      {intro && <SplashIntro mode={intro} onDone={() => setIntro(null)} />}
       <div className={liveGame ? 'app live-game' : 'app'}>
         <Topbar />
         <Outlet />
