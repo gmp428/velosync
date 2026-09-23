@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type AnimationEvent, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { markIntroSeen, type IntroMode } from '../lib/intro'
+import type { IntroMode } from '../lib/intro'
 
 const MARK_SRC = `${import.meta.env.BASE_URL}logos/velosync-vs-mark-on-dark.png`
 const WORD_SRC = `${import.meta.env.BASE_URL}logos/velosync-wordmark-on-dark.png`
@@ -15,7 +15,6 @@ type Layout = {
   wordH: number
   markH: number
   expandH: number
-  cueH: number
 }
 
 function measure(vw: number): Layout {
@@ -28,7 +27,6 @@ function measure(vw: number): Layout {
     wordH,
     markH,
     expandH: markH + 36,
-    cueH: markH + 96,
   }
 }
 
@@ -77,8 +75,8 @@ function StaticA({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     if (!reduce) return
-    const fadeAt = window.setTimeout(() => setLeaving(true), 900)
-    const doneAt = window.setTimeout(() => onDoneRef.current(), 1200)
+    const fadeAt = window.setTimeout(() => setLeaving(true), 2700)
+    const doneAt = window.setTimeout(() => onDoneRef.current(), 3000)
     return () => {
       window.clearTimeout(fadeAt)
       window.clearTimeout(doneAt)
@@ -97,7 +95,6 @@ function StaticA({ onDone }: { onDone: () => void }) {
     '--word-h': `${layout.wordH}px`,
     '--mark-h': `${layout.markH}px`,
     '--expand-h': `${layout.expandH}px`,
-    '--cue-h': `${layout.cueH}px`,
   } as CSSProperties
 
   return (
@@ -117,7 +114,6 @@ function StaticA({ onDone }: { onDone: () => void }) {
                 <img src={WORD_SRC} alt="" draggable={false} />
               </span>
             </div>
-            <div className="splash-cue">Start a game</div>
           </div>
         </div>
       </Field>
@@ -151,10 +147,6 @@ function StaticB({ onDone }: { onDone: () => void }) {
 }
 
 export default function SplashIntro({ mode, onDone }: { mode: IntroMode; onDone: () => void }) {
-  const finish = () => {
-    markIntroSeen()
-    onDone()
-  }
-  const node = mode === 'b' ? <StaticB onDone={finish} /> : <StaticA onDone={finish} />
+  const node = mode === 'b' ? <StaticB onDone={onDone} /> : <StaticA onDone={onDone} />
   return createPortal(node, document.body)
 }
