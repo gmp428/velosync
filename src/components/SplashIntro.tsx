@@ -5,6 +5,7 @@ import type { IntroMode } from '../lib/intro'
 const MARK_SRC = `${import.meta.env.BASE_URL}logos/velosync-vs-mark-on-dark.png`
 const WORD_SRC = `${import.meta.env.BASE_URL}logos/velosync-wordmark-on-dark.png`
 const LOCKUP_SRC = `${import.meta.env.BASE_URL}logos/velosync-lockup-on-dark.png`
+const FIELD_SRC = `${import.meta.env.BASE_URL}splash/field-b.jpg`
 
 /** Wordmark PNG width / height, and home-plate mark width / height. */
 const WORD_ASPECT = 1147 / 400
@@ -42,15 +43,7 @@ function useLayout(): Layout {
 
 function Field({ children }: { children: ReactNode }) {
   return (
-    <div className="splash-field" aria-hidden="true">
-      <div className="splash-sky" />
-      <div className="splash-bokeh">
-        <span className="bokeh b1" />
-        <span className="bokeh b2" />
-        <span className="bokeh b3" />
-        <span className="bokeh b4" />
-        <span className="bokeh b5" />
-      </div>
+    <div className="splash-field" style={{ backgroundImage: `url(${FIELD_SRC})` }}>
       {children}
     </div>
   )

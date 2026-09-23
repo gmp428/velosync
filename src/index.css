@@ -438,28 +438,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: #d5e4f4;
+  background-color: #7eb6e4;
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
-.splash-sky {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 70% 48% at 78% 8%, rgba(255, 246, 220, 0.95), transparent 58%),
-    radial-gradient(ellipse 42% 36% at 8% 78%, rgba(146, 172, 112, 0.38), transparent 68%),
-    radial-gradient(ellipse 48% 40% at 96% 86%, rgba(126, 158, 96, 0.32), transparent 70%),
-    linear-gradient(180deg, #c3daf0 0%, #e7f0f8 40%, #e4eedd 78%, #d5e3c4 100%);
-}
-.splash-bokeh { position: absolute; inset: 0; pointer-events: none; }
-.bokeh {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(2px);
-}
-.bokeh.b1 { width: 90px; height: 90px; left: 8%; top: 18%; background: rgba(255, 255, 255, 0.45); filter: blur(6px); }
-.bokeh.b2 { width: 28px; height: 28px; left: 18%; top: 62%; background: rgba(255, 220, 160, 0.7); filter: blur(1px); }
-.bokeh.b3 { width: 140px; height: 140px; right: 6%; bottom: 14%; background: rgba(255, 236, 190, 0.4); filter: blur(10px); }
-.bokeh.b4 { width: 18px; height: 18px; right: 22%; top: 28%; background: rgba(255, 255, 255, 0.8); }
-.bokeh.b5 { width: 64px; height: 64px; left: 62%; bottom: 22%; background: rgba(255, 255, 255, 0.28); filter: blur(5px); }
 
 .splash-stage {
   position: relative;

@@ -25,6 +25,7 @@ export default defineConfig({
         'logos/velosync-horizontal.png',
         'logos/velosync-wordmark-on-dark.png',
         'logos/velosync-lockup-on-dark.png',
+        'splash/field-b.jpg',
       ],
       manifest: {
         id: base,
