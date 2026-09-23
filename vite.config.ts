@@ -21,7 +21,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: [
         'logos/velosync-vs-mark.png',
+        'logos/velosync-vs-mark-on-dark.png',
         'logos/velosync-horizontal.png',
+        'logos/velosync-wordmark-on-dark.png',
+        'logos/velosync-lockup-on-dark.png',
       ],
       manifest: {
         id: base,

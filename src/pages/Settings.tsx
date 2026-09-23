@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { clearIntroSeen } from '../lib/intro'
 import {
   CAPTURE_PRESETS, LIVE_CAPTURE_FLAGS, db, exportAll, getSettings, importAll, newId, now, pendingSync, saveSettings,
   type BackupFile, type CaptureFlags,
@@ -25,6 +26,7 @@ export default function Settings() {
   const settings = useLiveQuery(() => getSettings(), [])
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [newName, setNewName] = useState('')
+  const [introArmed, setIntroArmed] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const selectPreset = (key: 'quick' | 'standard' | 'detailed') =>
@@ -171,6 +173,20 @@ export default function Settings() {
           onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])}
         />
       </div>
+
+      <h2>Opening splash</h2>
+      <p className="muted">
+        The intro plays once on this device, then skips. Bring it back the next time you open the app.
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          clearIntroSeen()
+          setIntroArmed(true)
+        }}
+      >
+        {introArmed ? 'Splash will play next open' : 'Show splash next open'}
+      </button>
 
       <h2>About</h2>
       <p className="muted">
