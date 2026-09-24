@@ -64,6 +64,7 @@ a { color: var(--accent); text-decoration: none; }
 }
 .topbar .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .topbar .brand img { height: 40px; width: auto; display: block; }
+/* PR number on preview builds; package version (vX.Y.Z) on main. */
 .topbar .brand-pr {
   font-size: 0.7rem;
   font-weight: 700;

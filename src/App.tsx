@@ -8,6 +8,8 @@ import { resolveIntroMode, type IntroMode } from './lib/intro'
 
 const prMatch = import.meta.env.BASE_URL.match(/\/pr\/(\d+)\//)
 const prNumber = prMatch?.[1]
+// PR previews keep the PR number. Main/production builds show package.json version.
+const brandBadge = prNumber ? `PR${prNumber}` : __APP_VERSION__ ? `v${__APP_VERSION__}` : ''
 
 function Topbar() {
   const { subheader, rightAction } = useHeaderExtraState()
@@ -16,7 +18,7 @@ function Topbar() {
       <div className="topbar-row">
         <Link to="/" className="brand" aria-label="Home">
           <Logo />
-          {prNumber && <span className="brand-pr">PR{prNumber}</span>}
+          {brandBadge && <span className="brand-pr">{brandBadge}</span>}
         </Link>
         {rightAction}
       </div>
