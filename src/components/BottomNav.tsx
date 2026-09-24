@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom'
 import homeSvg from '../assets/nav/home-3.svg?raw'
-import teamsSvg from '../assets/nav/teams-2.svg?raw'
+import teamsSvg from '../assets/nav/teams-ref-raglan.svg?raw'
 import pitchersSvg from '../assets/nav/pitchers-2.svg?raw'
-import gamesSvg from '../assets/nav/games-2.svg?raw'
+import gamesSvg from '../assets/nav/games-ref-crossed-b.svg?raw'
 import settingsSvg from '../assets/nav/settings-3.svg?raw'
 
 /** Locked filled glyphs stay #2563EB in the asset files. Tabs recolor via currentColor. */
