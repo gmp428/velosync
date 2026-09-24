@@ -4,6 +4,13 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-09-24
+
+### Changed
+- Visual direction **X Floating Glass Cobalt**: pale outdoor-light canvas, soft elevated cards, and cobalt (`#2563EB`) calls to action.
+- Bottom navigation is a framed frosted-glass floating island (hidden on the live logger, which stays flush and opaque). Tabs use the locked filled icon set: house, roster clipboard, stitched ball, game-day calendar, and sliders.
+- Home stacks a full-width "Start a game" action over the pitchers card. The version / PR pill stays: package version on main builds, PR number on preview builds.
+
 ## [0.15.0] — 2026-09-22
 
 ### Added

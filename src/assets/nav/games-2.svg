@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- 2 Calendar game day — filled calendar with diamond mark -->
+  <rect x="8" y="14" width="48" height="42" rx="7" fill="#2563EB"/>
+  <rect x="17" y="7" width="7" height="12" rx="3.5" fill="#2563EB"/>
+  <rect x="40" y="7" width="7" height="12" rx="3.5" fill="#2563EB"/>
+  <!-- white header bar -->
+  <rect x="14" y="20" width="36" height="5" rx="2.5" fill="#FFFFFF"/>
+  <!-- white diamond game-day mark -->
+  <path d="M32 30 L44 42 L32 54 L20 42 Z" fill="#FFFFFF"/>
+  <circle cx="32" cy="42" r="3.5" fill="#2563EB"/>
+</svg>
