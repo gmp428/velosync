@@ -15,13 +15,31 @@ Please change the parent <Route path="${e}"> to <Route path="${e===`/`?`*`:`${e}
         fill="#2563EB"/>
 </svg>
 `,na=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <!-- 2 Clipboard roster — filled clipboard with list lines -->
-  <rect x="12" y="10" width="40" height="48" rx="6" fill="#2563EB"/>
-  <rect x="24" y="6" width="16" height="10" rx="3" fill="#2563EB"/>
-  <rect x="26" y="8" width="12" height="6" rx="2" fill="#FFFFFF"/>
-  <rect x="20" y="26" width="24" height="4.5" rx="2.25" fill="#FFFFFF"/>
-  <rect x="20" y="35" width="20" height="4.5" rx="2.25" fill="#FFFFFF"/>
-  <rect x="20" y="44" width="16" height="4.5" rx="2.25" fill="#FFFFFF"/>
+  <!-- Ref: raglan baseball/softball jersey — filled cobalt, white V + placket + seams -->
+  <path fill="#2563EB" d="
+    M20 9.5
+    L32 19.5
+    L44 9.5
+    L54.5 14.8
+    L60.5 24.5
+    L51.5 31
+    L47.5 28.5
+    V51.8
+    C47.5 55.4 44.2 58.2 40.2 58.2
+    H23.8
+    C19.8 58.2 16.5 55.4 16.5 51.8
+    V28.5
+    L12.5 31
+    L3.5 24.5
+    L9.5 14.8
+    Z"/>
+  <!-- V neck cutout -->
+  <path fill="#FFFFFF" d="M32 19.5 L25.2 12.2 L32 17.6 L38.8 12.2 Z"/>
+  <!-- Placket -->
+  <rect x="30.35" y="18.2" width="3.3" height="36.5" rx="1.4" fill="#FFFFFF"/>
+  <!-- Raglan seams -->
+  <path d="M20 9.5 L16.5 28.5" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M44 9.5 L47.5 28.5" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/>
 </svg>
 `,ra=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <!-- 2 Baseball/softball only — classic stitched ball filled glyph -->
@@ -38,18 +56,7 @@ Please change the parent <Route path="${e}"> to <Route path="${e===`/`?`*`:`${e}
   <path d="M48 22 L43 24 M48.5 28 L43 29 M48.5 36 L43 35 M48 44 L43 41"
         stroke="#FFFFFF" stroke-width="2.25" stroke-linecap="round"/>
 </svg>
-`,ia=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <!-- 2 Calendar game day — filled calendar with diamond mark -->
-  <rect x="8" y="14" width="48" height="42" rx="7" fill="#2563EB"/>
-  <rect x="17" y="7" width="7" height="12" rx="3.5" fill="#2563EB"/>
-  <rect x="40" y="7" width="7" height="12" rx="3.5" fill="#2563EB"/>
-  <!-- white header bar -->
-  <rect x="14" y="20" width="36" height="5" rx="2.5" fill="#FFFFFF"/>
-  <!-- white diamond game-day mark -->
-  <path d="M32 30 L44 42 L32 54 L20 42 Z" fill="#FFFFFF"/>
-  <circle cx="32" cy="42" r="3.5" fill="#2563EB"/>
-</svg>
-`,aa=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+`,ia=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><!-- Games 2: chunkier bats + bigger ball for small sizes --><g transform="translate(32,28) rotate(45)"><path d="M-6,-28 A6,6 0 0 1 6,-28 L6,-13 C6,-6 2.4,0 2.4,6 L2.4,27 C2.4,28.5 4.6,29 4.6,30.5 C4.6,32.8 -4.6,32.8 -4.6,30.5 C-4.6,29 -2.4,28.5 -2.4,27 L-2.4,6 C-2.4,0 -6,-6 -6,-13 Z" fill="#2563EB"/><g stroke="#FFFFFF" stroke-width="1.6"><line x1="-6" y1="-24" x2="6" y2="-24"/><line x1="-6" y1="-20.5" x2="6" y2="-20.5"/><line x1="-2.4" y1="15" x2="2.4" y2="15"/><line x1="-2.4" y1="22" x2="2.4" y2="22"/></g></g><g transform="translate(32,28) rotate(-45)"><path d="M-6,-28 A6,6 0 0 1 6,-28 L6,-13 C6,-6 2.4,0 2.4,6 L2.4,27 C2.4,28.5 4.6,29 4.6,30.5 C4.6,32.8 -4.6,32.8 -4.6,30.5 C-4.6,29 -2.4,28.5 -2.4,27 L-2.4,6 C-2.4,0 -6,-6 -6,-13 Z" fill="#2563EB" stroke="#FFFFFF" stroke-width="2.4" paint-order="stroke"/><g stroke="#FFFFFF" stroke-width="1.6"><line x1="-6" y1="-24" x2="6" y2="-24"/><line x1="-6" y1="-20.5" x2="6" y2="-20.5"/><line x1="-2.4" y1="15" x2="2.4" y2="15"/><line x1="-2.4" y1="22" x2="2.4" y2="22"/></g></g><circle cx="32" cy="52" r="8.5" fill="#2563EB"/><path d="M27.325,45.2 C30.3,49.45 30.3,54.55 27.325,58.8 M36.675,45.2 C33.7,49.45 33.7,54.55 36.675,58.8" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>`,aa=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <!-- 3 Sliders — three filled horizontal slider controls -->
   <rect x="6" y="11" width="52" height="9" rx="4.5" fill="#2563EB"/>
   <circle cx="20" cy="15.5" r="8" fill="#2563EB"/>
