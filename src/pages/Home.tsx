@@ -1,29 +1,42 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, newId, now, pendingSync } from '../db'
+import { ActiveSeasonNote, NoActiveSeason } from '../components/SeasonChrome'
+import { db, newId, now, pendingSync, pitcherOnStaff } from '../db'
+import { useSeasonList } from '../lib/useSeason'
 
 export default function Home() {
-  const opponents = useLiveQuery(
-    () => db.opponents.toArray().then((list) => list.sort((a, b) => a.name.localeCompare(b.name))),
-    []
-  )
-  const activeGames = useLiveQuery(() => db.games.where('status').equals('active').toArray(), [])
-  const pitcherCount = useLiveQuery(() => db.pitchers.count(), [])
+  const { seasons, active } = useSeasonList()
+  const opponents = useLiveQuery(async () => {
+    if (!active) return []
+    const list = await db.opponents.where('seasonId').equals(active.id).toArray()
+    return list.sort((a, b) => a.name.localeCompare(b.name))
+  }, [active?.id])
+  const activeGames = useLiveQuery(async () => {
+    if (!active) return []
+    const list = await db.games.where('status').equals('active').toArray()
+    return list.filter((g) => g.seasonId === active.id)
+  }, [active?.id])
+  const pitcherCount = useLiveQuery(async () => {
+    if (!active) return 0
+    const list = await db.pitchers.toArray()
+    return list.filter((p) => pitcherOnStaff(p, active.id)).length
+  }, [active?.id])
   const [name, setName] = useState('')
 
   const addOpponent = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = name.trim()
-    if (!trimmed) return
-    await db.opponents.add({ id: newId(), name: trimmed, updatedAt: now(), ...pendingSync() })
+    if (!trimmed || !active) return
+    await db.opponents.add({ id: newId(), name: trimmed, seasonId: active.id, updatedAt: now(), ...pendingSync() })
     setName('')
   }
 
-  if (!opponents || !activeGames) return null
+  if (!seasons || !opponents || !activeGames || pitcherCount === undefined) return null
 
   return (
     <main>
+      {active ? <ActiveSeasonNote season={active} /> : <NoActiveSeason />}
       {activeGames.map((g) => (
         <Link key={g.id} to={`/game/${g.id}`} className="list-item">
           <span className="live-dot" aria-hidden="true" />
@@ -46,7 +59,7 @@ export default function Home() {
       </Link>
 
       <h2>Opposing teams</h2>
-      {opponents.length === 0 && (
+      {!active ? null : opponents.length === 0 && (
         <p className="empty">
           Add the teams you play against, then add their batters.<br />
           Everything you log builds their scouting reports.
@@ -61,7 +74,7 @@ export default function Home() {
         ))}
       </div>
 
-      <form onSubmit={addOpponent} className="row">
+      {active && <form onSubmit={addOpponent} className="row">
         <input
           className="grow"
           placeholder="New team name"
@@ -70,7 +83,7 @@ export default function Home() {
           aria-label="New team name"
         />
         <button type="submit" className="primary">Add team</button>
-      </form>
+      </form>}
     </main>
   )
 }

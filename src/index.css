@@ -197,6 +197,7 @@ button.danger {
 
 .warning { color: #a66b00; font-size: 0.9rem; }
 button.small { min-height: 36px; padding: 6px 12px; font-size: 0.85rem; border-radius: 12px; background: #fff; }
+button.primary.small { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
 button.small.icon-btn { width: 34px; min-width: 34px; padding: 6px; display: inline-flex; align-items: center; justify-content: center; }
 button.link-btn {
   background: none;
@@ -434,10 +435,23 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .drag-handle:active { cursor: grabbing; }
 .ghost-row { opacity: 0.75; border-style: dashed; }
 
-.pill { border-radius: 999px; padding: 3px 10px; font-size: 0.78rem; font-weight: 600; background: var(--panel-2); color: var(--muted); }
+.pill { border-radius: 999px; padding: 3px 10px; font-size: 0.78rem; font-weight: 600; background: var(--panel-2); color: var(--muted); margin-right: 4px; }
 .pill.count-pill { background: #e6eeff; color: #3b4d6b; }
 .good { color: var(--good); }
 .bad { color: var(--bad); }
+.era-figure {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin: 2px 0 4px;
+}
+.era-row {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
 
 .empty { text-align: center; color: var(--muted); padding: 24px 12px; }
 

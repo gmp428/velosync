@@ -47,9 +47,39 @@ function hydrateBatterSortIndex<T extends { id: string; opponentId: string; sort
 
 // ---------- Types ----------
 
+// How many innings a "full game" is when turning earned runs and innings
+// pitched into ERA: (ER × eraInnings) ÷ IP. Required on every season — there
+// is no app-wide default.
+export type EraInnings = 6 | 7 | 9
+
+export function isEraInnings(n: unknown): n is EraInnings {
+  return n === 6 || n === 7 || n === 9
+}
+
+// A coach-named stretch of the year. Teams, pitchers, and games belong to
+// exactly one season. Only one season is active at a time; creating or
+// activating a season never archives or deletes the others — the coach
+// switches the active flag by hand.
+export interface Season {
+  id: string
+  name: string
+  startDate?: string | null // optional ISO yyyy-mm-dd
+  endDate?: string | null
+  eraInnings: EraInnings
+  active: boolean
+  createdAt: number
+  updatedAt: number
+  syncStatus: SyncStatus
+  syncedAt?: number | null
+}
+
 export interface Opponent {
   id: string
   name: string
+  // Which season this opposing team belongs to. Missing only on rows written
+  // before seasons existed, until the coach names that first season and the
+  // one-time backfill stamps it.
+  seasonId?: string
   updatedAt: number
   syncStatus: SyncStatus
   syncedAt?: number | null
@@ -115,6 +145,15 @@ export interface Pitcher {
   // Pitch types this pitcher can throw. Undefined or empty = all pitch types
   // (covers pitchers created before arsenals existed).
   pitchTypeIds?: string[]
+  // Set when this row belongs to one season (the in-app “import from another
+  // season” copy). A version-6 file leaves it unset and reuses this same id
+  // on games in every season — there is no pitcher-season join table.
+  seasonId?: string
+  // Same idea as Batter.linkGroupId: a shared person id across roster entries
+  // (usually one per season, occasionally two teams in the same season).
+  // Import always sets this so career ERA can combine the entries. Unlinking
+  // clears it on this row only.
+  linkGroupId?: string
   updatedAt: number
   syncStatus: SyncStatus
   syncedAt?: number | null
@@ -156,6 +195,11 @@ export function fullName(p: { firstName?: string; lastName?: string; name?: stri
   if (p.name) return p.name
   if (p.number) return `Batter #${p.number}`
   return '?'
+}
+
+/** Staff for a season: rows tagged with that season, plus shared rows that have no seasonId. */
+export function pitcherOnStaff(pitcher: { seasonId?: string }, seasonId: string): boolean {
+  return !pitcher.seasonId || pitcher.seasonId === seasonId
 }
 
 export function pitcherArsenal(pitcher: Pitcher | undefined, allTypes: PitchType[]): PitchType[] {
@@ -260,6 +304,9 @@ export interface PitchType {
 export interface Game {
   id: string
   opponentId: string
+  // Games always belong to a season. Stamped when the game is started (the
+  // active season). Missing only until the first-season backfill runs.
+  seasonId?: string
   date: string // ISO yyyy-mm-dd
   label?: string
   status: 'active' | 'finished'
@@ -381,8 +428,8 @@ export interface Pitch {
 // A coach's manual capture of how many earned runs a pitcher allowed during
 // ONE specific half-inning. Deliberately raw/manual — this app does NOT try
 // to derive earned runs automatically from base-runner/scoring logic (too
-// error-prone to compute reliably). ERA and any season-scoped filtering are
-// separate, later pieces of work; this is only the capture + a raw total.
+// error-prone to compute reliably). ERA is computed at read time from these
+// rows plus outs on the at-bats (see src/lib/era.ts); nothing is stored.
 export interface EarnedRun {
   id: string
   gameId: string
@@ -475,6 +522,7 @@ export async function saveSettings(patch: Partial<Omit<AppSettings, 'id'>>): Pro
 // name is versioned (…-v2) because the id type changed from integers to
 // strings; the old integer-keyed database is discarded (data was throwaway).
 export const db = new Dexie('pitch-tracker-v2') as Dexie & {
+  seasons: EntityTable<Season, 'id'>
   opponents: EntityTable<Opponent, 'id'>
   batters: EntityTable<Batter, 'id'>
   pitchers: EntityTable<Pitcher, 'id'>
@@ -587,10 +635,23 @@ db.version(8).stores({
   earnedRuns: 'id, gameId, pitcherId, inning, half, updatedAt, syncStatus',
 })
 
+// v9 adds seasons. seasonId is indexed on the rows a season owns (opposing
+// teams, the pitcher staff, and games). There is NO automatic backfill here:
+// the coach names the first season and picks a 6/7/9 ERA method in the
+// one-time setup screen, and that action stamps seasonId on existing rows.
+// linkGroupId on pitchers mirrors batters — optional, unset until a person
+// is linked (import does this).
+db.version(9).stores({
+  seasons: 'id, name, active, createdAt, updatedAt, syncStatus',
+  opponents: 'id, name, seasonId, updatedAt, syncStatus',
+  pitchers: 'id, name, seasonId, linkGroupId, updatedAt, syncStatus',
+  games: 'id, opponentId, seasonId, status, updatedAt, syncStatus',
+})
+
 // Discard the legacy integer-keyed database from before the UUID switch.
 Dexie.delete('pitch-tracker').catch(() => {})
 
-const SYNC_TABLES = ['opponents', 'batters', 'pitchers', 'pitchTypes', 'games', 'atBats', 'pitches', 'substitutions', 'earnedRuns'] as const
+const SYNC_TABLES = ['seasons', 'opponents', 'batters', 'pitchers', 'pitchTypes', 'games', 'atBats', 'pitches', 'substitutions', 'earnedRuns'] as const
 
 for (const name of SYNC_TABLES) {
   const table = db.table(name)
@@ -715,12 +776,284 @@ export function outcomeLabel(o: AtBatOutcome | InPlayOutcome): string {
   }[o]
 }
 
+// ---------- Seasons ----------
+
+export interface SeasonInput {
+  name: string
+  startDate?: string | null
+  endDate?: string | null
+  eraInnings: EraInnings
+  /** Explicit coach choice. Never implied — creating a season does not activate it unless this is true. */
+  makeActive: boolean
+}
+
+function cleanDate(value: string | null | undefined): string | null {
+  const v = value?.trim()
+  return v ? v : null
+}
+
+/**
+ * Create a season. The first season ever created also backfills seasonId
+ * onto every existing team, pitcher, and game that doesn't have one yet —
+ * that is the one-time migration. Later seasons start empty.
+ * Activating is opt-in (`makeActive`) and only flips the active flag; it
+ * does not archive, hide, or move any other season's data.
+ */
+export async function createSeason(input: SeasonInput): Promise<string> {
+  const name = input.name.trim()
+  if (!name) throw new Error('Season name is required.')
+  if (!isEraInnings(input.eraInnings)) throw new Error('Choose how ERA is calculated for this season.')
+  const id = newId()
+  const ts = now()
+  await db.transaction('rw', [db.seasons, db.opponents, db.pitchers, db.games], async () => {
+    const existing = await db.seasons.count()
+    if (input.makeActive) {
+      await db.seasons.toCollection().modify((row: Season) => {
+        if (!row.active) return false
+        row.active = false
+        row.updatedAt = ts
+      })
+    }
+    await db.seasons.add({
+      id,
+      name,
+      startDate: cleanDate(input.startDate),
+      endDate: cleanDate(input.endDate),
+      eraInnings: input.eraInnings,
+      active: input.makeActive,
+      createdAt: ts,
+      updatedAt: ts,
+      ...pendingSync(),
+    })
+    if (existing === 0) {
+      const stamp = (row: { seasonId?: string; updatedAt: number }) => {
+        if (row.seasonId) return false
+        row.seasonId = id
+        row.updatedAt = ts
+      }
+      await db.opponents.toCollection().modify(stamp)
+      await db.pitchers.toCollection().modify(stamp)
+      await db.games.toCollection().modify(stamp)
+    }
+  })
+  return id
+}
+
+export async function updateSeason(
+  id: string,
+  patch: { name?: string; startDate?: string | null; endDate?: string | null; eraInnings?: EraInnings },
+): Promise<void> {
+  const current = await db.seasons.get(id)
+  if (!current) throw new Error('Season not found.')
+  const name = patch.name !== undefined ? patch.name.trim() : current.name
+  if (!name) throw new Error('Season name is required.')
+  const eraInnings = patch.eraInnings ?? current.eraInnings
+  if (!isEraInnings(eraInnings)) throw new Error('Choose how ERA is calculated for this season.')
+  await db.seasons.update(id, {
+    name,
+    startDate: patch.startDate !== undefined ? cleanDate(patch.startDate) : current.startDate ?? null,
+    endDate: patch.endDate !== undefined ? cleanDate(patch.endDate) : current.endDate ?? null,
+    eraInnings,
+    updatedAt: now(),
+    ...pendingSync(),
+  })
+}
+
+/** Move the active flag. Other seasons stay in the list, untouched. */
+export async function setActiveSeason(seasonId: string): Promise<void> {
+  const ts = now()
+  await db.transaction('rw', db.seasons, async () => {
+    const target = await db.seasons.get(seasonId)
+    if (!target) throw new Error('Season not found.')
+    await db.seasons.toCollection().modify((row: Season) => {
+      const should = row.id === seasonId
+      if (row.active === should) return false
+      row.active = should
+      row.updatedAt = ts
+    })
+  })
+}
+
+/** Delete only when the season has no teams, pitchers, or games. */
+export async function deleteSeasonIfEmpty(seasonId: string): Promise<boolean> {
+  const [teams, pitchers, games] = await Promise.all([
+    db.opponents.filter((o) => o.seasonId === seasonId).count(),
+    db.pitchers.filter((p) => p.seasonId === seasonId).count(),
+    db.games.filter((g) => g.seasonId === seasonId).count(),
+  ])
+  if (teams + pitchers + games > 0) return false
+  await db.seasons.delete(seasonId)
+  return true
+}
+
+export async function countUnscopedSeasonRows(): Promise<number> {
+  // Pitchers with no seasonId are the shared staff (one id across seasons),
+  // not leftovers waiting to be stamped onto a single season.
+  const [opponents, games] = await Promise.all([
+    db.opponents.filter((o) => !o.seasonId).count(),
+    db.games.filter((g) => !g.seasonId).count(),
+  ])
+  return opponents + games
+}
+
+/** Safety net if a later backup left rows without a season. Does not create a season. */
+export async function assignUnscopedToSeason(seasonId: string): Promise<number> {
+  const ts = now()
+  let n = 0
+  await db.transaction('rw', [db.seasons, db.opponents, db.games], async () => {
+    const season = await db.seasons.get(seasonId)
+    if (!season) throw new Error('Season not found.')
+    const stamp = (row: { seasonId?: string; updatedAt: number }) => {
+      if (row.seasonId) return false
+      row.seasonId = seasonId
+      row.updatedAt = ts
+      n++
+    }
+    await db.opponents.toCollection().modify(stamp)
+    await db.games.toCollection().modify(stamp)
+  })
+  return n
+}
+
+// Import copies a roster entry into the target season and links it to the
+// same person (shared linkGroupId). The source row is never moved. If the
+// source wasn't linked yet, both rows receive a new group id so a later
+// unlink can separate them again.
+async function pitcherGroupId(source: Pitcher): Promise<string> {
+  if (source.linkGroupId) return source.linkGroupId
+  const groupId = newId()
+  await db.pitchers.update(source.id, { linkGroupId: groupId, updatedAt: now(), ...pendingSync() })
+  return groupId
+}
+
+async function batterGroupId(source: Batter): Promise<string> {
+  if (source.linkGroupId) return source.linkGroupId
+  const groupId = newId()
+  await db.batters.update(source.id, { linkGroupId: groupId, updatedAt: now(), ...pendingSync() })
+  return groupId
+}
+
+export async function importPitchersToSeason(
+  targetSeasonId: string,
+  picks: Array<{ sourceId: string; number: string }>,
+): Promise<void> {
+  await db.transaction('rw', [db.seasons, db.pitchers], async () => {
+    const season = await db.seasons.get(targetSeasonId)
+    if (!season) throw new Error('Season not found.')
+    for (const pick of picks) {
+      const source = await db.pitchers.get(pick.sourceId)
+      if (!source) continue
+      const groupId = await pitcherGroupId(source)
+      await db.pitchers.add({
+        id: newId(),
+        firstName: source.firstName,
+        lastName: source.lastName,
+        name: source.name,
+        number: pick.number.trim(),
+        throws: source.throws,
+        notes: source.notes,
+        pitchTypeIds: source.pitchTypeIds ? [...source.pitchTypeIds] : undefined,
+        seasonId: targetSeasonId,
+        linkGroupId: groupId,
+        updatedAt: now(),
+        ...pendingSync(),
+      })
+    }
+  })
+}
+
+export async function importBattersToTeam(opts: {
+  targetSeasonId: string
+  /** Add onto this team. Omit to create a new opposing team in the target season. */
+  targetOpponentId?: string
+  newTeamName?: string
+  /** When cloning a whole roster, copy that team's planned ghost-out slot. */
+  cloneGhostFromOpponentId?: string | null
+  picks: Array<{ sourceId: string; number: string }>
+}): Promise<string> {
+  return db.transaction('rw', [db.seasons, db.opponents, db.batters], async () => {
+    const season = await db.seasons.get(opts.targetSeasonId)
+    if (!season) throw new Error('Season not found.')
+    let opponentId = opts.targetOpponentId
+    if (!opponentId) {
+      const name = opts.newTeamName?.trim()
+      if (!name) throw new Error('Team name is required.')
+      opponentId = newId()
+      const sourceOpp = opts.cloneGhostFromOpponentId
+        ? await db.opponents.get(opts.cloneGhostFromOpponentId)
+        : undefined
+      await db.opponents.add({
+        id: opponentId,
+        name,
+        seasonId: opts.targetSeasonId,
+        ghostOutEnabled: sourceOpp?.ghostOutEnabled,
+        ghostOutSortIndex: sourceOpp?.ghostOutSortIndex,
+        updatedAt: now(),
+        ...pendingSync(),
+      })
+    } else {
+      const existing = await db.opponents.get(opponentId)
+      if (!existing) throw new Error('Team not found.')
+      if (existing.seasonId && existing.seasonId !== opts.targetSeasonId) {
+        throw new Error('That team belongs to a different season.')
+      }
+    }
+    const existingBatters = await db.batters.where('opponentId').equals(opponentId).toArray()
+    let sort = existingBatters.reduce((max, b) => Math.max(max, b.sortIndex ?? 0), -1) + 1
+    const sources: Array<{ source: Batter; number: string }> = []
+    for (const pick of opts.picks) {
+      const source = await db.batters.get(pick.sourceId)
+      if (source) sources.push({ source, number: pick.number })
+    }
+    sources.sort((a, b) => (a.source.sortIndex ?? 0) - (b.source.sortIndex ?? 0))
+    for (const { source, number } of sources) {
+      const groupId = await batterGroupId(source)
+      await db.batters.add({
+        id: newId(),
+        opponentId,
+        firstName: source.firstName,
+        lastName: source.lastName,
+        name: source.name,
+        number: number.trim(),
+        bats: source.bats,
+        notes: source.notes,
+        sortIndex: sort++,
+        activeToday: source.activeToday !== false,
+        linkGroupId: groupId,
+        updatedAt: now(),
+        ...pendingSync(),
+      })
+    }
+    return opponentId
+  })
+}
+
+/** Join two pitcher roster entries as the same person. Same folding rule as batters. */
+export async function linkPitcherRecords(aId: string, bId: string): Promise<void> {
+  if (aId === bId) return
+  await db.transaction('rw', db.pitchers, async () => {
+    const a = await db.pitchers.get(aId)
+    const b = await db.pitchers.get(bId)
+    if (!a || !b) return
+    const groupId = a.linkGroupId ?? b.linkGroupId ?? newId()
+    const ts = now()
+    await db.pitchers.update(a.id, { linkGroupId: groupId, updatedAt: ts, ...pendingSync() })
+    await db.pitchers.update(b.id, { linkGroupId: groupId, updatedAt: ts, ...pendingSync() })
+  })
+}
+
+/** Clear the person link on this roster entry only. Other entries keep the group. */
+export async function unlinkPitcherRecord(pitcherId: string): Promise<void> {
+  await db.pitchers.update(pitcherId, { linkGroupId: undefined, updatedAt: now(), ...pendingSync() })
+}
+
 // ---------- Export / import ----------
 
 export interface BackupFile {
   app: 'pitch-tracker'
-  version: number // 2 = pre-sync-meta; 3 = includes syncStatus/syncedAt; 4 = includes substitutions; 5 = includes earnedRuns
+  version: number // 2 = pre-sync-meta; 3 = includes syncStatus/syncedAt; 4 = includes substitutions; 5 = includes earnedRuns; 6 = includes seasons
   exportedAt: string
+  seasons?: Season[] // optional: backups from before seasons shipped
   opponents: Opponent[]
   batters: Batter[]
   pitchers: Pitcher[]
@@ -736,8 +1069,9 @@ export interface BackupFile {
 export async function exportAll(): Promise<BackupFile> {
   return {
     app: 'pitch-tracker',
-    version: 3,
+    version: 6,
     exportedAt: new Date().toISOString(),
+    seasons: await db.seasons.toArray(),
     opponents: await db.opponents.toArray(),
     batters: await db.batters.toArray(),
     pitchers: await db.pitchers.toArray(),
@@ -751,30 +1085,164 @@ export async function exportAll(): Promise<BackupFile> {
   }
 }
 
-export async function importAll(data: BackupFile): Promise<void> {
-  if (data.app !== 'pitch-tracker' || !Array.isArray(data.pitches)) {
-    throw new Error('This file does not look like a VeloSync backup.')
+const IMPORT_LISTS = ['opponents', 'batters', 'pitchers', 'pitchTypes', 'games', 'atBats', 'pitches'] as const
+
+function requireList(value: unknown, label: string): unknown[] {
+  if (!Array.isArray(value)) throw new Error(`This file needs a list of ${label}.`)
+  return value
+}
+
+function requireIds(rows: unknown[], label: string) {
+  for (const row of rows) {
+    const id = (row as { id?: unknown } | null)?.id
+    if (typeof id !== 'string' || id.length === 0) throw new Error(`Each ${label} row needs a string id.`)
   }
-  await db.transaction('rw', [db.opponents, db.batters, db.pitchers, db.pitchTypes, db.games, db.atBats, db.pitches, db.settings, db.substitutions, db.earnedRuns], async () => {
+}
+
+function optionalList(value: unknown, label: string): unknown[] | undefined {
+  if (value == null) return undefined
+  if (!Array.isArray(value)) throw new Error(`${label} must be a list.`)
+  return value
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+const SYNC_STATUS = new Set(['pending', 'synced', 'error'])
+
+function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && !Number.isNaN(Date.parse(value))
+}
+
+/**
+ * Check a JSON value before it replaces the database.
+ * Version 6 is the locked BackupFile shape (seasons required). Versions 2–5
+ * still load; they have no seasons, and the first season the coach names
+ * is assigned to those existing teams, pitchers, and games.
+ */
+export function parseImportFile(data: unknown): BackupFile {
+  if (!data || typeof data !== 'object') throw new Error('This file is not a VeloSync JSON import.')
+  const file = data as Partial<BackupFile>
+  if (file.app !== 'pitch-tracker') {
+    throw new Error('This file does not look like a VeloSync import. It needs "app": "pitch-tracker".')
+  }
+  if (typeof file.version !== 'number') throw new Error('This file needs a version number. Use 6.')
+  for (const key of IMPORT_LISTS) requireList(file[key], key)
+  requireIds(file.opponents as unknown[], 'team')
+  requireIds(file.batters as unknown[], 'batter')
+  requireIds(file.pitchers as unknown[], 'pitcher')
+  requireIds(file.pitchTypes as unknown[], 'pitch type')
+  requireIds(file.games as unknown[], 'game')
+  requireIds(file.atBats as unknown[], 'at-bat')
+  requireIds(file.pitches as unknown[], 'pitch')
+
+  let seasons: Season[] | undefined
+  if (file.version >= 6) {
+    if (!isIsoTimestamp(file.exportedAt)) throw new Error('Version 6 needs exportedAt as an ISO timestamp.')
+    const rows = requireList(file.seasons, 'seasons')
+    requireIds(rows, 'season')
+    const ids = new Set<string>()
+    let active = 0
+    seasons = rows.map((row) => {
+      const season = row as Partial<Season>
+      const name = typeof season.name === 'string' ? season.name.trim() : ''
+      if (!season.id || !name) throw new Error('Each season needs an id and a name.')
+      if (!isEraInnings(season.eraInnings)) throw new Error(`Season “${name}” needs eraInnings of 6, 7, or 9.`)
+      if (typeof season.active !== 'boolean') throw new Error(`Season “${name}” needs active true or false.`)
+      if (typeof season.updatedAt !== 'number') throw new Error(`Season “${name}” needs updatedAt as a millisecond timestamp.`)
+      if (typeof season.syncStatus !== 'string' || !SYNC_STATUS.has(season.syncStatus)) {
+        throw new Error(`Season “${name}” needs syncStatus "pending", "synced", or "error".`)
+      }
+      if (season.syncedAt != null && typeof season.syncedAt !== 'number') {
+        throw new Error(`Season “${name}” syncedAt must be a number or null.`)
+      }
+      if (season.startDate != null && season.startDate !== '' && !ISO_DAY.test(season.startDate)) {
+        throw new Error(`Season “${name}” startDate must be yyyy-mm-dd.`)
+      }
+      if (season.endDate != null && season.endDate !== '' && !ISO_DAY.test(season.endDate)) {
+        throw new Error(`Season “${name}” endDate must be yyyy-mm-dd.`)
+      }
+      if (ids.has(season.id)) throw new Error(`Duplicate season id ${season.id}.`)
+      ids.add(season.id)
+      if (season.active) active++
+      return {
+        ...(season as Season),
+        name,
+        createdAt: typeof season.createdAt === 'number' ? season.createdAt : season.updatedAt,
+        startDate: season.startDate || null,
+        endDate: season.endDate || null,
+        syncedAt: season.syncedAt ?? null,
+      }
+    })
+    if (active > 1) throw new Error('Only one season can be marked active.')
+    for (const row of file.opponents as Opponent[]) {
+      if (typeof row.seasonId !== 'string' || !ids.has(row.seasonId)) {
+        throw new Error(`Team “${row.name || row.id}” needs a seasonId that matches a season.`)
+      }
+    }
+    for (const row of file.games as Game[]) {
+      if (typeof row.seasonId !== 'string' || !ids.has(row.seasonId)) {
+        throw new Error(`Game ${row.id} needs a seasonId that matches a season.`)
+      }
+    }
+  } else {
+    const legacy = optionalList(file.seasons, 'seasons')
+    if (legacy) {
+      requireIds(legacy, 'season')
+      seasons = legacy as Season[]
+    }
+  }
+
+  for (const [list, label] of [[file.batters, 'batter'], [file.pitchers, 'pitcher']] as const) {
+    for (const row of list as Array<{ linkGroupId?: unknown }>) {
+      if (row.linkGroupId != null && typeof row.linkGroupId !== 'string') {
+        throw new Error(`A ${label} linkGroupId must be a string when it is set.`)
+      }
+    }
+  }
+
+  const earnedRuns = optionalList(file.earnedRuns, 'earnedRuns')
+  if (earnedRuns) {
+    requireIds(earnedRuns, 'earned run')
+    for (const row of earnedRuns) {
+      const er = row as Partial<EarnedRun>
+      if (typeof er.gameId !== 'string' || typeof er.pitcherId !== 'string') {
+        throw new Error('Each earned run needs a gameId and a pitcherId.')
+      }
+      if (typeof er.runs !== 'number' || typeof er.inning !== 'number' || (er.half !== 'top' && er.half !== 'bottom')) {
+        throw new Error('Each earned run needs inning, half ("top" or "bottom"), and a numeric runs count.')
+      }
+    }
+  }
+  optionalList(file.substitutions, 'substitutions')
+  optionalList(file.settings, 'settings')
+  if (file.substitutions) requireIds(file.substitutions, 'substitution')
+
+  return { ...file, seasons, exportedAt: file.exportedAt ?? '' } as BackupFile
+}
+
+export async function importAll(data: BackupFile): Promise<void> {
+  const file = parseImportFile(data)
+  await db.transaction('rw', [db.seasons, db.opponents, db.batters, db.pitchers, db.pitchTypes, db.games, db.atBats, db.pitches, db.settings, db.substitutions, db.earnedRuns], async () => {
     await Promise.all([
+      db.seasons.clear(),
       db.opponents.clear(), db.batters.clear(), db.pitchers.clear(),
       db.pitchTypes.clear(), db.games.clear(), db.atBats.clear(), db.pitches.clear(),
       db.settings.clear(), db.substitutions.clear(), db.earnedRuns.clear(),
     ])
-    await db.opponents.bulkAdd(data.opponents.map(hydrateSync))
-    await db.batters.bulkAdd(hydrateBatterSortIndex(data.batters.map(hydrateSync)))
-    await db.pitchers.bulkAdd(data.pitchers.map(hydrateSync))
-    await db.pitchTypes.bulkAdd(data.pitchTypes.map(hydrateSync))
-    await db.games.bulkAdd(data.games.map(hydrateSync))
-    await db.atBats.bulkAdd(data.atBats.map(hydrateSync))
-    await db.pitches.bulkAdd(data.pitches.map(hydrateSync))
+    if (file.seasons?.length) await db.seasons.bulkAdd(file.seasons.map(hydrateSync))
+    await db.opponents.bulkAdd(file.opponents.map(hydrateSync))
+    await db.batters.bulkAdd(hydrateBatterSortIndex(file.batters.map(hydrateSync)))
+    await db.pitchers.bulkAdd(file.pitchers.map(hydrateSync))
+    await db.pitchTypes.bulkAdd(file.pitchTypes.map(hydrateSync))
+    await db.games.bulkAdd(file.games.map(hydrateSync))
+    await db.atBats.bulkAdd(file.atBats.map(hydrateSync))
+    await db.pitches.bulkAdd(file.pitches.map(hydrateSync))
     // Older backups predate settings — restore the row if present, else leave
     // the store empty so getSettings() falls back to the default.
-    if (data.settings?.length) await db.settings.bulkAdd(data.settings)
+    if (file.settings?.length) await db.settings.bulkAdd(file.settings)
     // Older backups predate substitutions — same fallback.
-    if (data.substitutions?.length) await db.substitutions.bulkAdd(data.substitutions.map(hydrateSync))
+    if (file.substitutions?.length) await db.substitutions.bulkAdd(file.substitutions.map(hydrateSync))
     // Older backups predate earned-runs capture — same fallback.
-    if (data.earnedRuns?.length) await db.earnedRuns.bulkAdd(data.earnedRuns.map(hydrateSync))
+    if (file.earnedRuns?.length) await db.earnedRuns.bulkAdd(file.earnedRuns.map(hydrateSync))
   })
 }
 

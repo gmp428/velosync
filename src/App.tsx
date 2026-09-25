@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, matchPath, useLocation } from 'react-router-dom'
+import { useLiveQuery } from 'dexie-react-hooks'
 import Logo from './components/Logo'
 import BottomNav from './components/BottomNav'
+import SeasonGate from './components/SeasonGate'
 import SplashIntro from './components/SplashIntro'
+import { db } from './db'
 import { HeaderExtraProvider, useHeaderExtraState } from './lib/headerExtra'
 import { resolveIntroMode, type IntroMode } from './lib/intro'
 
@@ -31,6 +34,8 @@ export default function App() {
   const { pathname } = useLocation()
   const liveGame = Boolean(matchPath('/game/:id', pathname))
   const [intro, setIntro] = useState<IntroMode | null>(() => resolveIntroMode())
+  const seasonCount = useLiveQuery(() => db.seasons.count(), [])
+  const needsSeason = seasonCount === 0
 
   // Mobile Safari/WebKit PWA bug: navigating "back" to a long scrollable
   // list (e.g. Roster) can restore the previous scroll offset before the
@@ -50,8 +55,8 @@ export default function App() {
       {intro && <SplashIntro mode={intro} onDone={() => setIntro(null)} />}
       <div className={liveGame ? 'app live-game' : 'app'}>
         <Topbar />
-        <Outlet />
-        {!liveGame && <BottomNav />}
+        {seasonCount === undefined ? null : needsSeason ? <SeasonGate /> : <Outlet />}
+        {seasonCount !== undefined && !needsSeason && !liveGame && <BottomNav />}
       </div>
     </HeaderExtraProvider>
   )
