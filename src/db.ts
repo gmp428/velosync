@@ -145,8 +145,9 @@ export interface Pitcher {
   // Pitch types this pitcher can throw. Undefined or empty = all pitch types
   // (covers pitchers created before arsenals existed).
   pitchTypeIds?: string[]
-  // Season this roster entry belongs to. A new season's staff starts empty;
-  // importing creates a new row here rather than moving the old one.
+  // Set when this row belongs to one season (the in-app “import from another
+  // season” copy). A version-6 file leaves it unset and reuses this same id
+  // on games in every season — there is no pitcher-season join table.
   seasonId?: string
   // Same idea as Batter.linkGroupId: a shared person id across roster entries
   // (usually one per season, occasionally two teams in the same season).
@@ -194,6 +195,11 @@ export function fullName(p: { firstName?: string; lastName?: string; name?: stri
   if (p.name) return p.name
   if (p.number) return `Batter #${p.number}`
   return '?'
+}
+
+/** Staff for a season: rows tagged with that season, plus shared rows that have no seasonId. */
+export function pitcherOnStaff(pitcher: { seasonId?: string }, seasonId: string): boolean {
+  return !pitcher.seasonId || pitcher.seasonId === seasonId
 }
 
 export function pitcherArsenal(pitcher: Pitcher | undefined, allTypes: PitchType[]): PitchType[] {
@@ -881,19 +887,20 @@ export async function deleteSeasonIfEmpty(seasonId: string): Promise<boolean> {
 }
 
 export async function countUnscopedSeasonRows(): Promise<number> {
-  const [opponents, pitchers, games] = await Promise.all([
+  // Pitchers with no seasonId are the shared staff (one id across seasons),
+  // not leftovers waiting to be stamped onto a single season.
+  const [opponents, games] = await Promise.all([
     db.opponents.filter((o) => !o.seasonId).count(),
-    db.pitchers.filter((p) => !p.seasonId).count(),
     db.games.filter((g) => !g.seasonId).count(),
   ])
-  return opponents + pitchers + games
+  return opponents + games
 }
 
 /** Safety net if a later backup left rows without a season. Does not create a season. */
 export async function assignUnscopedToSeason(seasonId: string): Promise<number> {
   const ts = now()
   let n = 0
-  await db.transaction('rw', [db.seasons, db.opponents, db.pitchers, db.games], async () => {
+  await db.transaction('rw', [db.seasons, db.opponents, db.games], async () => {
     const season = await db.seasons.get(seasonId)
     if (!season) throw new Error('Season not found.')
     const stamp = (row: { seasonId?: string; updatedAt: number }) => {
@@ -903,7 +910,6 @@ export async function assignUnscopedToSeason(seasonId: string): Promise<number> 
       n++
     }
     await db.opponents.toCollection().modify(stamp)
-    await db.pitchers.toCollection().modify(stamp)
     await db.games.toCollection().modify(stamp)
   })
   return n
@@ -1099,10 +1105,18 @@ function optionalList(value: unknown, label: string): unknown[] | undefined {
   return value
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+const SYNC_STATUS = new Set(['pending', 'synced', 'error'])
+
+function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && !Number.isNaN(Date.parse(value))
+}
+
 /**
- * Check a JSON value before it replaces the database. Old backups (version
- * 2–5) still load. Version 6 is the shape to author by hand: seasons, teams,
- * pitchers, games, pitches, earned runs, and person links. See the README.
+ * Check a JSON value before it replaces the database.
+ * Version 6 is the locked BackupFile shape (seasons required). Versions 2–5
+ * still load; they have no seasons, and the first season the coach names
+ * is assigned to those existing teams, pitchers, and games.
  */
 export function parseImportFile(data: unknown): BackupFile {
   if (!data || typeof data !== 'object') throw new Error('This file is not a VeloSync JSON import.')
@@ -1120,21 +1134,61 @@ export function parseImportFile(data: unknown): BackupFile {
   requireIds(file.atBats as unknown[], 'at-bat')
   requireIds(file.pitches as unknown[], 'pitch')
 
-  const seasons = optionalList(file.seasons, 'seasons')
-  if (seasons) {
-    requireIds(seasons, 'season')
+  let seasons: Season[] | undefined
+  if (file.version >= 6) {
+    if (!isIsoTimestamp(file.exportedAt)) throw new Error('Version 6 needs exportedAt as an ISO timestamp.')
+    const rows = requireList(file.seasons, 'seasons')
+    requireIds(rows, 'season')
+    const ids = new Set<string>()
     let active = 0
-    for (const row of seasons) {
+    seasons = rows.map((row) => {
       const season = row as Partial<Season>
-      if (typeof season.name !== 'string' || season.name.trim() === '') throw new Error('Each season needs a name.')
-      if (!isEraInnings(season.eraInnings)) throw new Error(`Season “${season.name}” needs eraInnings of 6, 7, or 9.`)
-      if (typeof season.active !== 'boolean') throw new Error(`Season “${season.name}” needs active true or false.`)
-      if (typeof season.createdAt !== 'number' || typeof season.updatedAt !== 'number') {
-        throw new Error(`Season “${season.name}” needs createdAt and updatedAt as millisecond timestamps.`)
+      const name = typeof season.name === 'string' ? season.name.trim() : ''
+      if (!season.id || !name) throw new Error('Each season needs an id and a name.')
+      if (!isEraInnings(season.eraInnings)) throw new Error(`Season “${name}” needs eraInnings of 6, 7, or 9.`)
+      if (typeof season.active !== 'boolean') throw new Error(`Season “${name}” needs active true or false.`)
+      if (typeof season.updatedAt !== 'number') throw new Error(`Season “${name}” needs updatedAt as a millisecond timestamp.`)
+      if (typeof season.syncStatus !== 'string' || !SYNC_STATUS.has(season.syncStatus)) {
+        throw new Error(`Season “${name}” needs syncStatus "pending", "synced", or "error".`)
       }
+      if (season.syncedAt != null && typeof season.syncedAt !== 'number') {
+        throw new Error(`Season “${name}” syncedAt must be a number or null.`)
+      }
+      if (season.startDate != null && season.startDate !== '' && !ISO_DAY.test(season.startDate)) {
+        throw new Error(`Season “${name}” startDate must be yyyy-mm-dd.`)
+      }
+      if (season.endDate != null && season.endDate !== '' && !ISO_DAY.test(season.endDate)) {
+        throw new Error(`Season “${name}” endDate must be yyyy-mm-dd.`)
+      }
+      if (ids.has(season.id)) throw new Error(`Duplicate season id ${season.id}.`)
+      ids.add(season.id)
       if (season.active) active++
-    }
+      return {
+        ...(season as Season),
+        name,
+        createdAt: typeof season.createdAt === 'number' ? season.createdAt : season.updatedAt,
+        startDate: season.startDate || null,
+        endDate: season.endDate || null,
+        syncedAt: season.syncedAt ?? null,
+      }
+    })
     if (active > 1) throw new Error('Only one season can be marked active.')
+    for (const row of file.opponents as Opponent[]) {
+      if (typeof row.seasonId !== 'string' || !ids.has(row.seasonId)) {
+        throw new Error(`Team “${row.name || row.id}” needs a seasonId that matches a season.`)
+      }
+    }
+    for (const row of file.games as Game[]) {
+      if (typeof row.seasonId !== 'string' || !ids.has(row.seasonId)) {
+        throw new Error(`Game ${row.id} needs a seasonId that matches a season.`)
+      }
+    }
+  } else {
+    const legacy = optionalList(file.seasons, 'seasons')
+    if (legacy) {
+      requireIds(legacy, 'season')
+      seasons = legacy as Season[]
+    }
   }
 
   for (const [list, label] of [[file.batters, 'batter'], [file.pitchers, 'pitcher']] as const) {
@@ -1162,7 +1216,7 @@ export function parseImportFile(data: unknown): BackupFile {
   optionalList(file.settings, 'settings')
   if (file.substitutions) requireIds(file.substitutions, 'substitution')
 
-  return file as BackupFile
+  return { ...file, seasons, exportedAt: file.exportedAt ?? '' } as BackupFile
 }
 
 export async function importAll(data: BackupFile): Promise<void> {

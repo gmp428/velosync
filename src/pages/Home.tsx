@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ActiveSeasonNote, NoActiveSeason } from '../components/SeasonChrome'
-import { db, newId, now, pendingSync } from '../db'
+import { db, newId, now, pendingSync, pitcherOnStaff } from '../db'
 import { useSeasonList } from '../lib/useSeason'
 
 export default function Home() {
@@ -17,10 +17,11 @@ export default function Home() {
     const list = await db.games.where('status').equals('active').toArray()
     return list.filter((g) => g.seasonId === active.id)
   }, [active?.id])
-  const pitcherCount = useLiveQuery(
-    () => (active ? db.pitchers.where('seasonId').equals(active.id).count() : Promise.resolve(0)),
-    [active?.id],
-  )
+  const pitcherCount = useLiveQuery(async () => {
+    if (!active) return 0
+    const list = await db.pitchers.toArray()
+    return list.filter((p) => pitcherOnStaff(p, active.id)).length
+  }, [active?.id])
   const [name, setName] = useState('')
 
   const addOpponent = async (e: React.FormEvent) => {

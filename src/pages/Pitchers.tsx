@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ImportFromSeason } from '../components/ImportFromSeason'
 import { ActiveSeasonNote, NoActiveSeason } from '../components/SeasonChrome'
-import { db, displayName, fullName, linkPitcherRecords, newId, now, pendingSync, pitcherArsenal, unlinkPitcherRecord } from '../db'
+import { db, displayName, fullName, linkPitcherRecords, newId, now, pendingSync, pitcherArsenal, pitcherOnStaff, unlinkPitcherRecord } from '../db'
 import { useSeasonList } from '../lib/useSeason'
 
 export default function Pitchers() {
   const { seasons, active } = useSeasonList()
   const allPitchers = useLiveQuery(() => db.pitchers.toArray(), [])
-  const pitchers = allPitchers?.filter((p) => active && p.seasonId === active.id)
+  const pitchers = allPitchers?.filter((p) => active && pitcherOnStaff(p, active.id))
   const pitchTypes = useLiveQuery(() => db.pitchTypes.toArray(), [])
 
   const [editingId, setEditingId] = useState<string | null>(null)

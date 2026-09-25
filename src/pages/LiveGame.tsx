@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CAPTURE_PRESETS, compactDisplayName, db, displayName, getSettings, GHOST_OUT, linkedBatterIds, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, resultLabel, zoneLabel,
+  CAPTURE_PRESETS, compactDisplayName, db, displayName, getSettings, GHOST_OUT, linkedBatterIds, newId, now, pendingSync, persistLineupToRoster, pitcherArsenal, pitcherOnStaff, resultLabel, zoneLabel,
   type AtBat, type AtBatOutcome, type Batter, type InPlayOutcome, type Pitch, type PitchResult, type Zone,
 } from '../db'
 import ZoneGrid from '../components/ZoneGrid'
@@ -1042,7 +1042,7 @@ export default function LiveGame() {
                   }}
                 >
                   {pitchers
-                    .filter((p) => !game.seasonId || p.seasonId === game.seasonId || p.id === game.currentPitcherId)
+                    .filter((p) => !game.seasonId || pitcherOnStaff(p, game.seasonId) || p.id === game.currentPitcherId)
                     .map((p) => (
                     <option key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ''}{displayName(p)}</option>
                   ))}

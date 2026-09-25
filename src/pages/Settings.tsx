@@ -107,7 +107,7 @@ export default function Settings() {
       {unscoped > 0 && active && (
         <div className="card stack">
           <p style={{ margin: 0 }}>
-            {unscoped} team, pitcher, or game {unscoped === 1 ? 'record is' : 'records are'} not in a season yet.
+            {unscoped} team or game {unscoped === 1 ? 'record is' : 'records are'} not in a season yet.
           </p>
           <button type="button" className="primary" onClick={() => assignUnscopedToSeason(active.id)}>
             Put them in {active.name}

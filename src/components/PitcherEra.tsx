@@ -23,15 +23,18 @@ export function PitcherEra({ pitcher }: { pitcher: Pitcher }) {
   const earnedRuns = useLiveQuery(() => db.earnedRuns.toArray(), [])
   const [eraWindow, setEraWindow] = useState<EraWindow>('this')
 
-  const anchor = seasons?.find((s) => s.id === pitcher.seasonId)
   const active = seasons ? pickActiveSeason(seasons) : undefined
+  // A shared pitcher (no seasonId) is the same id in every season. Anchor ERA
+  // on the active season. A per-season roster copy stays anchored on its season.
+  const anchor = (pitcher.seasonId ? seasons?.find((s) => s.id === pitcher.seasonId) : active) ?? active
 
   const lines = useMemo(() => {
     if (!allPitchers || !seasons || !games || !atBats || !earnedRuns || !anchor) return null
     const entries = personPitchers(pitcher, allPitchers)
     const ids = new Set(entries.map((p) => p.id))
+    const shared = entries.some((p) => !p.seasonId)
     const bySeason = orderSeasons(
-      seasons.filter((s) => entries.some((p) => p.seasonId === s.id)),
+      shared ? seasons : seasons.filter((s) => entries.some((p) => p.seasonId === s.id)),
       games,
     )
     return bySeason.map((season) => {
@@ -40,7 +43,7 @@ export function PitcherEra({ pitcher }: { pitcher: Pitcher }) {
         season,
         outs: sumOuts(atBats, ids, gameIds),
         er: sumEarnedRuns(earnedRuns, ids, gameIds),
-        entries: entries.filter((p) => p.seasonId === season.id),
+        entries: entries.filter((p) => !p.seasonId || p.seasonId === season.id),
       }
     })
   }, [allPitchers, seasons, games, atBats, earnedRuns, anchor, pitcher])

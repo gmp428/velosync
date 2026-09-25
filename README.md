@@ -12,48 +12,40 @@ A phone-friendly web app for tracking softball pitch data. Log every pitch — t
 
 ## Import from file
 
-Settings → **Backup and import** → **Import from file** replaces everything stored on the device. The same button is on the first-season screen, before any season exists. Import does not merge. There is no sample file in this repo.
+Settings → **Backup and import** → **Import from file** replaces everything stored on the device. The same button is on the first-season screen. Import does not merge. There is no sample file in this repo.
 
-The file is JSON, version 6 (the same shape **Export backup** writes). Older backups (version 2–5) still import; they have no seasons, so the app asks you to name one afterward.
+**Export backup** writes version 6, including `seasons`. Import accepts version 6. Older backups (version 2–5) still import. They have no `seasons` array; the app then asks you to name one season, and that season is assigned to the teams, pitchers, and games already in the file.
 
-Top-level fields:
+### BackupFile version 6
 
-| Field | Required | What it is |
+| Field | Required | Contents |
 | --- | --- | --- |
 | `app` | yes | `"pitch-tracker"` |
-| `version` | yes | `6` |
-| `exportedAt` | no | ISO timestamp, shown in the confirm dialog |
-| `seasons` | no | Season list. Omit on a pre-season backup. |
-| `opponents` | yes | Opposing teams |
-| `batters` | yes | Batters on those teams |
-| `pitchers` | yes | Your staff |
-| `pitchTypes` | yes | Pitch types pitches refer to |
-| `games` | yes | Games |
+| `version` | yes | `6` (version 5 added earned runs; 6 adds seasons) |
+| `exportedAt` | yes | ISO timestamp |
+| `seasons` | yes | Array, possibly empty. At most one row has `active: true`. |
+| `opponents` | yes | Teams. Each row’s `seasonId` must match a season `id`. |
+| `batters` | yes | Batters. Season comes from their team’s `seasonId`. |
+| `pitchers` | yes | One row per pitcher. The same `id` is used in every season. |
+| `pitchTypes` | yes | Pitch types referenced by pitches |
+| `games` | yes | Each row’s `seasonId` must match a season `id`. |
 | `atBats` | yes | Plate appearances |
-| `pitches` | yes | Pitches |
-| `earnedRuns` | no | Earned runs per pitcher per half-inning |
+| `pitches` | yes | Pitches, including optional `intendedZone` |
+| `earnedRuns` | no | Earned runs for one pitcher in one half-inning |
 | `substitutions` | no | Mid-game batter substitutions |
 | `settings` | no | Logging preset. Omit to leave the app default. |
 
-Every row needs a string `id`. Ids are how rows point at each other. `syncStatus` and `syncedAt` can be omitted; import marks the row pending.
+`seasons[]` fields: `id`, `name`, `eraInnings` (`6`, `7`, or `9`), `active`, `updatedAt` (milliseconds), `syncStatus` (`"pending"`, `"synced"`, or `"error"`). Optional: `syncedAt` (number or null), `startDate`, `endDate` (`yyyy-mm-dd`). `createdAt` is not required; export may include it.
 
-`seasons[]`: `id`, `name`, `eraInnings` (`6`, `7`, or `9`), `active` (boolean; at most one `true`), `createdAt` and `updatedAt` (millisecond timestamps). Optional `startDate` and `endDate` are `yyyy-mm-dd`.
+`opponents[]` keeps the existing team fields and adds required `seasonId`. Each season has its own team rows.
 
-`opponents[]` (teams): `id`, `name`, `seasonId`. Optional `ghostOutEnabled`, `ghostOutSortIndex`.
+`games[]` keeps the existing game fields and adds required `seasonId`.
 
-`batters[]`: `id`, `opponentId`, `firstName`, `lastName`, `number`, `bats` (`"L"` or `"R"`), `sortIndex`, `activeToday`. Optional `linkGroupId`.
+`pitchers[]` is the existing pitcher table. Do not add a pitcher-season join, and do not copy a pitcher into a second row per season. Games, at-bats, pitches, and earned runs in any season point at that same pitcher `id`. Leave `seasonId` off the pitcher row. A pitcher row that does carry `seasonId` is shown only on that season’s staff (the in-app “import from another season” copy).
 
-`pitchers[]`: `id`, `firstName`, `lastName`, `number`, `throws` (`"L"` or `"R"`), `seasonId`, `pitchTypeIds`. Optional `notes` and `linkGroupId`.
+`batters[]` are season-scoped through `opponentId` → that team’s `seasonId`. The same person on another team or in another season shares `linkGroupId`. Pitches stay on the batter row they were logged against.
 
-The same `linkGroupId` on two batter rows, or two pitcher rows, means the same person. Pitches stay on the row they were logged against. Leave `linkGroupId` off a person who appears once.
-
-`games[]`: `id`, `opponentId`, `seasonId`, `date` (`yyyy-mm-dd`), `status` (`"active"` or `"finished"`), `homeAway` (`"home"` or `"away"`), `half` (`"top"` or `"bottom"`), `lineup` (batter ids in order). Optional `currentPitcherId`, `currentInning`, `label`.
-
-`atBats[]`: `id`, `gameId`, `batterId`, `pitcherId`, `outcome`, `inning`, `half`, `startedAt`. Outcomes: `walk`, `strikeout`, `out`, `single`, `double`, `triple`, `home_run`, `error`, `hbp`, `ghost_out`.
-
-`pitches[]`: `id`, `gameId`, `atBatId`, `batterId`, `pitcherId`, `pitchTypeId`, `seq` (1-based within the at-bat), `balls` and `strikes` (the count before this pitch), `zone`, `result`, `inning`, `ts`. Optional `intendedZone` and, when `result` is `in_play`, `inPlay` (`out`, `single`, `double`, `triple`, `home_run`, `error`). Results: `ball`, `called_strike`, `swinging_strike`, `foul`, `in_play`, `hbp`. A zone is `1`–`9` (strike zone, catcher's view) or an out-of-zone id: `o-up`, `o-down`, `o-left`, `o-right`, or a granular `og-` cell.
-
-`earnedRuns[]`: `id`, `gameId`, `pitcherId`, `inning`, `half` (`"top"` or `"bottom"`), `runs` (a number, including `0`).
+`atBats[]`, `pitches[]` (`intendedZone` optional; zones are `1`–`9` or `o-` / `og-` ids), `earnedRuns[]`, `substitutions[]`, `pitchTypes[]`, and `settings[]` are unchanged from the current backup. Every row needs a string `id`.
 
 ## Tech
 
