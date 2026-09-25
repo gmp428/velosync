@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- 2 Baseball/softball only — classic stitched ball filled glyph -->
+  <circle cx="32" cy="32" r="26" fill="#2563EB"/>
+  <!-- stitch seams as white cutouts -->
+  <path d="M18 14 C24 22 24 42 18 50"
+        stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  <path d="M46 14 C40 22 40 42 46 50"
+        stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  <!-- stitch ticks left -->
+  <path d="M16 22 L21 24 M15.5 28 L21 29 M15.5 36 L21 35 M16 44 L21 41"
+        stroke="#FFFFFF" stroke-width="2.25" stroke-linecap="round"/>
+  <!-- stitch ticks right -->
+  <path d="M48 22 L43 24 M48.5 28 L43 29 M48.5 36 L43 35 M48 44 L43 41"
+        stroke="#FFFFFF" stroke-width="2.25" stroke-linecap="round"/>
+</svg>
