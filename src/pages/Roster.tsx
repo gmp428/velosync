@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { ImportFromSeason } from '../components/ImportFromSeason'
 import { db, displayName, fullName, findLinkSuggestions, GHOST_OUT, newId, now, pendingSync, type Batter, type LinkSuggestion } from '../db'
 import LineupEditor from '../components/LineupEditor'
 import NumberPadInput from '../components/NumberPadInput'
@@ -72,6 +73,7 @@ export default function Roster() {
   // Simple tap-to-expand toggle for the batting-order section — always
   // starts collapsed (not auto-expanded based on lineup completeness).
   const [showBattingOrder, setShowBattingOrder] = useState(false)
+  const [showImport, setShowImport] = useState(false)
 
   // Cross-team player identity: batters/opponents from EVERY team (not just
   // this one), needed to check for likely matches when a name is saved.
@@ -402,6 +404,16 @@ export default function Roster() {
         })}
       </div>
 
+
+      {opponent?.seasonId && editingId === null && (
+        <button type="button" onClick={() => setShowImport(true)}>Import players from another season</button>
+      )}
+      {showImport && opponent?.seasonId && (
+        <ImportFromSeason
+          mode={{ kind: 'onto-team', targetSeasonId: opponent.seasonId, targetOpponentId: opponentId }}
+          onClose={() => setShowImport(false)}
+        />
+      )}
 
       <form onSubmit={save} className="card stack" style={{ display: editingId !== null ? 'none' : undefined }}>
         <strong>Add batter</strong>
