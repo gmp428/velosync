@@ -112,9 +112,9 @@ export default function Pitchers() {
                 minWidth: 0,
               }}
             >
-              <span>
-                {p.number ? `#${p.number} ` : ''}{displayName(p)}{' '}
-                <span className="pill">throws {p.throws}</span>
+              <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4, maxWidth: '100%' }}>
+                <span>{p.number ? `#${p.number} ` : ''}{displayName(p)}</span>
+                <span className="pill" style={{ whiteSpace: 'nowrap' }}>throws {p.throws}</span>
               </span>
               <span className="pill" style={{ maxWidth: '100%' }}>{arsenalLabel(p)}</span>
             </Link>
