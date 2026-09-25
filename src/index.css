@@ -1,13 +1,14 @@
 :root {
   color-scheme: light;
-  --bg: #e8eef7;        /* bluish white — readable in bright sun */
+  --bg: #e9f0f8;        /* pale bluish outdoor light — readable in bright sun */
   --panel: #ffffff;     /* white cards pop on the bluish background */
   --panel-2: #dde5f1;   /* inputs / insets */
-  --border: #bcc7d8;
+  --border: #d3deec;
   --text: #0d1526;      /* near-black, maximum contrast */
   --muted: #45536a;
-  --accent: #1d4ed8;    /* strong blue links */
-  --accent-dark: #1d4ed8; /* primary-button background */
+  --accent: #2563eb;    /* cobalt — CTAs, links, active icons */
+  --accent-dark: #2563eb;
+  --elev: 0 8px 22px rgba(28, 55, 110, 0.07), 0 1px 2px rgba(28, 55, 110, 0.05);
   --good: #15803d;
   --bad: #c0242c;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -22,18 +23,16 @@ html, body {
   color: var(--text);
 }
 
-/* Bottom nav total height: 8px top pad + 22px icon + 2px gap + ~13px label line
-   + 6px bottom pad = 51px content, plus env(safe-area-inset-bottom) as extra
-   space below the content (not squeezed into it). Content padding below must
-   clear the tallest case: 51px content + up to ~34px safe-area on iPhones
-   with a home indicator = ~85px; round up to 96px for margin. */
-#root { max-width: 640px; margin: 0 auto; padding: 0 12px calc(96px + env(safe-area-inset-bottom, 0px)); }
-/* Live logger (/game/:id): no tab bar, so drop the reserved nav inset and sit flush. */
-#root:has(.live-game) { padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* Floating island: ~6px frame pad + ~26px icon + ~3px gap + ~13px label + ~8px
+   tab pad = ~62px glass, plus 14px float gap under the pill. Content must
+   clear that plus the iOS home-indicator safe area (~34px) — 124px covers it. */
+#root { max-width: 640px; margin: 0 auto; padding: 0 16px calc(124px + env(safe-area-inset-bottom, 0px)); }
+/* Live logger (/game/:id): no island, so drop the reserved nav inset and sit flush. */
+#root:has(.live-game) { padding: 0 16px env(safe-area-inset-bottom, 0px); }
 
 h1, h2, h3 { margin: 12px 0 8px; }
-h1 { font-size: 1.3rem; }
-h2 { font-size: 1.1rem; }
+h1 { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 1.15rem; font-weight: 700; }
 h3 { font-size: 0.95rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 
 a { color: var(--accent); text-decoration: none; }
@@ -42,13 +41,19 @@ a { color: var(--accent); text-decoration: none; }
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 10px;
+  padding: 12px 0 8px;
+  border-bottom: none;
+  margin-bottom: 12px;
   position: sticky;
   top: 0;
   background: var(--bg);
   z-index: 10;
+}
+/* Live logger keeps a flush, opaque header — logo + action, hairline, no island. */
+.live-game .topbar {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+  padding-bottom: 10px;
 }
 .topbar-row {
   display: flex;
@@ -66,67 +71,132 @@ a { color: var(--accent); text-decoration: none; }
 .topbar .brand img { height: 40px; width: auto; display: block; }
 /* PR number on preview builds; package version (vX.Y.Z) on main. */
 .topbar .brand-pr {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #fff;
-  background: var(--accent);
+  letter-spacing: 0.01em;
+  color: #3c4a62;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #d5dfec;
   border-radius: 999px;
-  padding: 2px 7px;
+  padding: 2px 8px;
+  line-height: 1.35;
 }
-/* Bottom tab navigation — primary nav on ALL viewport widths.
-   Content height (icon+label+padding) = 8 + 22 + 2 + ~13 + 6 = 51px.
-   The iOS home-indicator safe area is added as EXTRA bottom padding on the
-   bar itself (via env(safe-area-inset-bottom)), so the 51px of tappable
-   icon+label content always sits above the home indicator instead of being
-   squeezed into it. Total rendered bar height on an iPhone with a 34px
-   safe area is therefore 51 + 34 = 85px. */
+/* Floating island — framed frosted-glass pill. Hidden on the live logger.
+   The home-indicator safe area is EXTRA space below the pill (padding on
+   the fixed shell), so the glass itself always sits above the indicator.
+   On a phone with a 34px safe area the shell is ~14px gap + ~70px glass + 34px. */
 .bottom-nav {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
   z-index: 20;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(640px, 100%);
   display: flex;
-  justify-content: space-around;
+  justify-content: center;
+  pointer-events: none;
+  background: none;
+  border: none;
+  padding: 0 16px calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.bottom-nav-island {
+  pointer-events: auto;
+  display: flex;
   align-items: stretch;
-  background: var(--panel);
-  border-top: 1px solid var(--border);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  gap: 2px;
+  width: 100%;
+  padding: 6px;
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.68));
+  border: 1px solid rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 0 0 1px rgba(160, 182, 214, 0.45),
+    0 14px 34px rgba(22, 46, 92, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  backdrop-filter: blur(22px) saturate(1.8);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bottom-nav-island { background: rgba(255, 255, 255, 0.97); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .bottom-nav-island {
+    background: #fff;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 .bottom-nav-tab {
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: 8px 4px 6px;
-  min-height: 51px;
-  color: var(--muted);
-  font-size: 0.7rem;
+  gap: 3px;
+  padding: 8px 2px 7px;
+  min-height: 56px;
+  min-width: 0;
+  border-radius: 22px;
+  color: #6d7c93;
+  font-size: 0.68rem;
   font-weight: 600;
+  line-height: 1.1;
   text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.bottom-nav-tab.active { color: var(--accent); }
+.bottom-nav-tab span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bottom-nav-tab.active {
+  color: var(--accent);
+  background: #e3edff;
+  font-weight: 700;
+}
+.bottom-nav-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: inherit;
+}
+.bottom-nav-glyph svg { display: block; width: 26px; height: 26px; }
 
 button, .btn {
   font: inherit;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 10px 14px;
   min-height: 44px;
   cursor: pointer;
   text-align: center;
 }
 button:active, .btn:active { transform: scale(0.98); }
-button.primary, .btn.primary { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; font-weight: 600; }
-button.danger { border-color: #e0a3a3; color: var(--bad); }
+button.primary, .btn.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.24);
+}
+button.danger {
+  background: #fff;
+  border-color: #f43f5e;
+  color: #e11d48;
+  font-weight: 600;
+}
 
 .warning { color: #a66b00; font-size: 0.9rem; }
-button.small { min-height: 34px; padding: 6px 10px; font-size: 0.85rem; border-radius: 8px; }
+button.small { min-height: 36px; padding: 6px 12px; font-size: 0.85rem; border-radius: 12px; background: #fff; }
 button.small.icon-btn { width: 34px; min-width: 34px; padding: 6px; display: inline-flex; align-items: center; justify-content: center; }
 button.link-btn {
   background: none;
@@ -143,10 +213,11 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 .card {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
+  border: 1px solid rgba(208, 220, 236, 0.95);
+  border-radius: 16px;
+  padding: 14px 16px;
   margin: 10px 0;
+  box-shadow: var(--elev);
 }
 
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -157,12 +228,12 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 input, select {
   font: inherit;
-  background: var(--panel-2);
+  background: #f7f9fc;
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
-  min-height: 44px;
+  border: 1px solid #d5deea;
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 48px;
   width: 100%;
 }
 label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 4px; }
@@ -173,12 +244,13 @@ label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 
   align-items: center;
   gap: 10px;
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
+  border: 1px solid rgba(208, 220, 236, 0.95);
+  border-radius: 16px;
+  padding: 14px 16px;
   color: var(--text);
+  box-shadow: var(--elev);
 }
-.list-item .chev { margin-left: auto; color: var(--muted); }
+.list-item .chev { margin-left: auto; color: #8b97ab; font-size: 1.25rem; line-height: 1; }
 .chev-collapse { font-size: 1.4em; line-height: 1; color: var(--text); }
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
@@ -362,11 +434,65 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .drag-handle:active { cursor: grabbing; }
 .ghost-row { opacity: 0.75; border-style: dashed; }
 
-.pill { border-radius: 6px; padding: 2px 8px; font-size: 0.78rem; background: var(--panel-2); color: var(--muted); }
+.pill { border-radius: 999px; padding: 3px 10px; font-size: 0.78rem; font-weight: 600; background: var(--panel-2); color: var(--muted); }
+.pill.count-pill { background: #e6eeff; color: #3b4d6b; }
 .good { color: var(--good); }
 .bad { color: var(--bad); }
 
 .empty { text-align: center; color: var(--muted); padding: 24px 12px; }
+
+/* Home — full-width cobalt CTA and the pitchers card under it. */
+.start-game {
+  width: 100%;
+  margin-top: 12px;
+  min-height: 54px;
+  font-size: 1.05rem;
+  border-radius: 14px;
+}
+.soft-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+  border-radius: 16px;
+  border: 1px solid rgba(208, 220, 236, 0.95);
+  box-shadow: var(--elev);
+}
+.live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--good);
+  flex: none;
+}
+.resume-link {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Live logger empty roster — tall dashed well, opaque page, no island. */
+.live-roster-empty {
+  margin-top: 8px;
+  min-height: calc(100dvh - 168px);
+  border: 1.5px dashed #c5d0e2;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px 22px;
+  color: #4d5d74;
+  background: rgba(255, 255, 255, 0.45);
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
 
 /* Transient "Ghost Batter — Out N" flash: fades in, holds, fades out while
    the auto-advance logs the ghost out and moves to the next real batter. */

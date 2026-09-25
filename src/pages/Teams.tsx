@@ -40,7 +40,7 @@ export default function Teams() {
         {opponents.map((o) => (
           <Link key={o.id} to={`/opponent/${o.id}`} className="list-item">
             <span>{o.name}</span>
-            <span className="pill">{batterCounts.get(o.id) ?? 0} batters</span>
+            <span className="pill count-pill">{batterCounts.get(o.id) ?? 0} batters</span>
             <span className="chev">›</span>
           </Link>
         ))}

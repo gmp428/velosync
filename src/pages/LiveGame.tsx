@@ -831,7 +831,9 @@ export default function LiveGame() {
             </button>
           </div>
           {roster.length === 0 && (
-            <p className="empty">No batters on {opponent.name}’s roster yet — add them from the team page.</p>
+            <div className="live-roster-empty">
+              No batters on {opponent.name}’s roster yet — add them from the team page.
+            </div>
           )}
           <div className="list">
             {roster.map((b) => (

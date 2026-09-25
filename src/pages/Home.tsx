@@ -25,20 +25,25 @@ export default function Home() {
   return (
     <main>
       {activeGames.map((g) => (
-        <Link key={g.id} to={`/game/${g.id}`} className="list-item" style={{ borderColor: 'var(--good)' }}>
-          <span className="good">●</span>
+        <Link key={g.id} to={`/game/${g.id}`} className="list-item">
+          <span className="live-dot" aria-hidden="true" />
           <span>
             Game in progress — {opponents.find((o) => o.id === g.opponentId)?.name ?? 'Unknown'}{' '}
             <span className="muted">({g.date})</span>
           </span>
-          <span className="chev">Resume ›</span>
+          <span className="resume-link">Resume ›</span>
         </Link>
       ))}
 
-      <div className="row" style={{ marginTop: 12 }}>
-        <Link to="/new-game" className="btn primary grow">▶ Start a game</Link>
-        <Link to="/pitchers" className="btn grow">My pitchers{pitcherCount ? ` (${pitcherCount})` : ''}</Link>
-      </div>
+      <Link to="/new-game" className="btn primary start-game">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 5.2v13.6l12-6.8z" fill="currentColor" />
+        </svg>
+        Start a game
+      </Link>
+      <Link to="/pitchers" className="soft-link">
+        My pitchers{pitcherCount ? ` (${pitcherCount})` : ''}
+      </Link>
 
       <h2>Opposing teams</h2>
       {opponents.length === 0 && (

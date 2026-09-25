@@ -45,8 +45,8 @@ export default defineConfig({
         description: pr
           ? 'Preview build of VeloSync'
           : 'Softball pitch tracking and scouting',
-        theme_color: '#e8eef7',
-        background_color: '#e8eef7',
+        theme_color: '#e9f0f8',
+        background_color: '#e9f0f8',
         display: 'standalone',
         icons: [
           {
