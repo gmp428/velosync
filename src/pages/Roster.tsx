@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ImportFromSeason } from '../components/ImportFromSeason'
+import LinkPersonPicker from '../components/LinkPersonPicker'
 import { db, displayName, fullName, findLinkSuggestions, GHOST_OUT, newId, now, pendingSync, type Batter, type LinkSuggestion } from '../db'
+import { useSeasonList } from '../lib/useSeason'
 import LineupEditor from '../components/LineupEditor'
 import NumberPadInput from '../components/NumberPadInput'
 
@@ -80,6 +82,14 @@ export default function Roster() {
   const allBattersEverywhere = useLiveQuery(() => db.batters.toArray(), [])
   const allOpponents = useLiveQuery(() => db.opponents.toArray(), [])
   const opponentsById = new Map((allOpponents ?? []).map((o) => [o.id, o]))
+  const { seasons } = useSeasonList()
+  const seasonName = (seasonId?: string) => seasons?.find((s) => s.id === seasonId)?.name
+  const teamWithSeason = (opponentId: string) => {
+    const team = opponentsById.get(opponentId)
+    if (!team) return '?'
+    const season = seasonName(team.seasonId)
+    return season ? `${team.name} (${season})` : team.name
+  }
 
   // Suggestion modal: shown right after saving a batter whose name just
   // changed, if likely cross-team matches were found. null = not showing.
@@ -87,9 +97,6 @@ export default function Roster() {
   // Manage-links modal for an existing batter (shows current links, lets
   // you search/add a manual link, or unlink via the 3+ group checklist).
   const [manageLinksFor, setManageLinksFor] = useState<Batter | null>(null)
-  // Manual-link team drill-down: null = showing team list, otherwise the
-  // opponentId whose players are currently shown.
-  const [manualLinkTeamId, setManualLinkTeamId] = useState<string | null>(null)
   // Name-sync step: shown after picking a target player (auto-suggestion
   // OR manual pick), before the link is actually written. Holds both
   // candidate batters so the coach can choose whose name wins.
@@ -361,7 +368,7 @@ export default function Roster() {
                   </Link>
                   {teammates.length > 0 && (
                     <div className="muted" style={{ fontSize: '0.8rem' }}>
-                      🔗 linked to {teammates.map((t) => opponentsById.get(t.opponentId)?.name ?? '?').join(', ')}
+                      🔗 linked to {teammates.map((t) => teamWithSeason(t.opponentId)).join(', ')}
                     </div>
                   )}
                 </div>
@@ -506,27 +513,18 @@ export default function Roster() {
       )}
 
       {manageLinksFor && (() => {
-        const current = manageLinksFor
+        const current = allBattersEverywhere?.find((b) => b.id === manageLinksFor.id) ?? manageLinksFor
         const teammates = linkedTeammatesFor(current)
         const group = [current, ...teammates]
-        // Team list for the drill-down: every OTHER opponent that has at
-        // least one batter not already in this group.
+        // Same eligibility as before: other teams only, and not someone
+        // already in this link group. The picker narrows that list by season
+        // and name; confirmLink still writes linkGroupId.
         const groupIds = new Set(group.map((g) => g.id))
-        const eligibleOtherTeamIds = new Set(
-          (allBattersEverywhere ?? [])
-            .filter((b) => b.opponentId !== current.opponentId && !groupIds.has(b.id))
-            .map((b) => b.opponentId),
+        const eligible = (allBattersEverywhere ?? []).filter(
+          (b) => b.opponentId !== current.opponentId && !groupIds.has(b.id),
         )
-        const otherTeams = (allOpponents ?? []).filter((o) => eligibleOtherTeamIds.has(o.id))
-        // Players on the currently-drilled-into team, eligible to link.
-        const teamPlayers = manualLinkTeamId
-          ? (allBattersEverywhere ?? []).filter(
-              (b) => b.opponentId === manualLinkTeamId && !groupIds.has(b.id),
-            )
-          : []
         const closeModal = () => {
           setManageLinksFor(null)
-          setManualLinkTeamId(null)
         }
         return (
           <div className="modal-overlay" onClick={closeModal}>
@@ -551,7 +549,7 @@ export default function Roster() {
                           style={{ width: 20, height: 20, flexShrink: 0 }}
                         />
                         <span className="grow">
-                          {g.number ? `#${g.number} ` : ''}{displayName(g)} — {opponentsById.get(g.opponentId)?.name ?? '?'}
+                          {g.number ? `#${g.number} ` : ''}{displayName(g)} — {teamWithSeason(g.opponentId)}
                         </span>
                       </label>
                     ))}
@@ -561,54 +559,33 @@ export default function Roster() {
                 <p className="muted" style={{ margin: 0 }}>Not currently linked to anyone.</p>
               )}
 
-              {manualLinkTeamId ? (
-                <>
-                  <div className="row spread" style={{ marginTop: 8 }}>
-                    <button className="small" onClick={() => setManualLinkTeamId(null)}>‹ Teams</button>
-                    <strong>{opponentsById.get(manualLinkTeamId)?.name ?? '?'}</strong>
-                  </div>
-                  {teamPlayers.length === 0 ? (
-                    <p className="empty">No linkable players on this team.</p>
-                  ) : (
-                    <div className="list">
-                      {teamPlayers.map((c) => (
-                        <button
-                          key={c.id}
-                          className="list-item"
-                          style={{ width: '100%' }}
-                          onClick={() => {
-                            closeModal()
-                            setPendingLink({ a: current, b: c })
-                          }}
-                        >
-                          <span>{c.number ? `#${c.number} ` : ''}{displayName(c)}</span>
-                          <span className="chev">›</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
+              <strong style={{ marginTop: 8 }}>Link to another team's player</strong>
+              {eligible.length === 0 ? (
+                <p className="empty">No other teams have linkable batters yet.</p>
               ) : (
-                <>
-                  <strong style={{ marginTop: 8 }}>Link to another team's player</strong>
-                  {otherTeams.length === 0 ? (
-                    <p className="empty">No other teams have linkable batters yet.</p>
-                  ) : (
-                    <div className="list">
-                      {otherTeams.map((o) => (
-                        <button
-                          key={o.id}
-                          className="list-item"
-                          style={{ width: '100%' }}
-                          onClick={() => setManualLinkTeamId(o.id)}
-                        >
-                          <span className="grow">{o.name}</span>
-                          <span className="chev">›</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
+                <LinkPersonPicker
+                  key={current.id}
+                  mode="batter"
+                  people={eligible.map((b) => {
+                    const team = opponentsById.get(b.opponentId)
+                    return {
+                      id: b.id,
+                      firstName: b.firstName,
+                      lastName: b.lastName,
+                      name: b.name,
+                      number: b.number,
+                      seasonId: team?.seasonId,
+                      teamId: b.opponentId,
+                      teamName: team?.name ?? 'Team',
+                    }
+                  })}
+                  onSelect={(id) => {
+                    const picked = eligible.find((b) => b.id === id)
+                    if (!picked) return
+                    closeModal()
+                    setPendingLink({ a: current, b: picked })
+                  }}
+                />
               )}
             </div>
           </div>
@@ -633,7 +610,7 @@ export default function Roster() {
             <div className="card stack" onClick={(e) => e.stopPropagation()}>
               <strong>Sync name across both records?</strong>
               <p className="muted" style={{ margin: 0 }}>
-                {opponentsById.get(a.opponentId)?.name ?? '?'} has "{nameA}", {opponentsById.get(b.opponentId)?.name ?? '?'} has "{nameB}".
+                {teamWithSeason(a.opponentId)} has "{nameA}", {teamWithSeason(b.opponentId)} has "{nameB}".
                 {namesMatch ? ' Names already match.' : ' Jersey numbers stay separate per team either way — only the name can sync.'}
               </p>
               {namesMatch ? (
