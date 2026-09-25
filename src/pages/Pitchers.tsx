@@ -118,9 +118,23 @@ export default function Pitchers() {
       <div className="list">
         {pitchers.map((p) => (
           <div key={p.id} className="list-item">
-            <Link to={`/pitcher/${p.id}`} className="grow" style={{ color: 'var(--text)' }}>
-              {p.number ? `#${p.number} ` : ''}{displayName(p)} <span className="pill">throws {p.throws}</span>{' '}
-              <span className="pill">{arsenalLabel(p)}</span>
+            <Link
+              to={`/pitcher/${p.id}`}
+              className="grow"
+              style={{
+                color: 'var(--text)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: 6,
+                minWidth: 0,
+              }}
+            >
+              <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4, maxWidth: '100%' }}>
+                <span>{p.number ? `#${p.number} ` : ''}{displayName(p)}</span>
+                <span className="pill" style={{ whiteSpace: 'nowrap' }}>throws {p.throws}</span>
+              </span>
+              <span className="pill" style={{ maxWidth: '100%' }}>{arsenalLabel(p)}</span>
             </Link>
             <button className="small" onClick={() => startEdit(p.id)}>Edit</button>
             <button className="small danger" onClick={() => remove(p.id)}>✕</button>
