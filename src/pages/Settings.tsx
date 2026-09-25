@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { LoadDemoButton } from '../components/LoadDemoButton'
 import { SeasonForm } from '../components/SeasonForm'
 import {
   CAPTURE_PRESETS, LIVE_CAPTURE_FLAGS, assignUnscopedToSeason, countUnscopedSeasonRows, createSeason, db,
@@ -181,6 +182,8 @@ export default function Settings() {
           }}
         />
       </div>
+
+      <LoadDemoButton />
 
       <h2>Logging detail</h2>
       <p className="muted">How much to capture per pitch. Keep it quick, or opt into more detail.</p>

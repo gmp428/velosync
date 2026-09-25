@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { createSeason, db } from '../db'
+import { LoadDemoButton } from './LoadDemoButton'
 import { SeasonForm } from './SeasonForm'
 
 // Shown until the coach has named at least one season. Existing teams,
@@ -41,6 +42,7 @@ export default function SeasonGate() {
           }}
         />
       </div>
+      <LoadDemoButton />
     </main>
   )
 }
