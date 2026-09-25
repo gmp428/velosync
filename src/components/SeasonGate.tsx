@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { createSeason, db } from '../db'
-import { LoadDemoButton } from './LoadDemoButton'
+import { ImportFromFile } from './ImportFromFile'
 import { SeasonForm } from './SeasonForm'
 
 // Shown until the coach has named at least one season. Existing teams,
@@ -42,7 +42,14 @@ export default function SeasonGate() {
           }}
         />
       </div>
-      <LoadDemoButton />
+      <div className="card stack">
+        <strong>Import from file</strong>
+        <p className="muted" style={{ margin: 0 }}>
+          Load a JSON file of seasons, teams, pitchers, games, pitches, earned runs, and person links.
+          This replaces everything on this device. It does not merge.
+        </p>
+        <ImportFromFile />
+      </div>
     </main>
   )
 }

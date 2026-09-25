@@ -1,12 +1,12 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { LoadDemoButton } from '../components/LoadDemoButton'
+import { ImportFromFile } from '../components/ImportFromFile'
 import { SeasonForm } from '../components/SeasonForm'
 import {
   CAPTURE_PRESETS, LIVE_CAPTURE_FLAGS, assignUnscopedToSeason, countUnscopedSeasonRows, createSeason, db,
-  deleteSeasonIfEmpty, exportAll, getSettings, importAll, newId, now, pendingSync, saveSettings, setActiveSeason,
+  deleteSeasonIfEmpty, exportAll, getSettings, newId, now, pendingSync, saveSettings, setActiveSeason,
   updateSeason,
-  type BackupFile, type CaptureFlags, type Season,
+  type CaptureFlags, type Season,
 } from '../db'
 import { formatSeasonDates, orderSeasons, pickActiveSeason } from '../lib/seasons'
 import { introEnabled, setIntroEnabled } from '../lib/intro'
@@ -37,7 +37,6 @@ export default function Settings() {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [newName, setNewName] = useState('')
   const [introOn, setIntroOn] = useState(() => introEnabled())
-  const fileInput = useRef<HTMLInputElement>(null)
 
   const selectPreset = (key: 'quick' | 'standard' | 'detailed') =>
     saveSettings({ preset: key, capture: { ...CAPTURE_PRESETS[key] } })
@@ -78,19 +77,6 @@ export default function Settings() {
     a.download = `pitch-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
-  }
-
-  const doImport = async (file: File) => {
-    try {
-      const data = JSON.parse(await file.text()) as BackupFile
-      if (!confirm(`Replace ALL current data with the backup from ${new Date(data.exportedAt).toLocaleString()}? This cannot be undone.`)) return
-      await importAll(data)
-      alert('Backup restored.')
-    } catch (err) {
-      alert(`Import failed: ${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      if (fileInput.current) fileInput.current.value = ''
-    }
   }
 
   if (!pitchTypes || !settings || !seasons || !games || unscoped === undefined) return null
@@ -183,8 +169,6 @@ export default function Settings() {
         />
       </div>
 
-      <LoadDemoButton />
-
       <h2>Logging detail</h2>
       <p className="muted">How much to capture per pitch. Keep it quick, or opt into more detail.</p>
       <div className="chips">
@@ -253,21 +237,15 @@ export default function Settings() {
         <button type="submit" className="primary">Add</button>
       </form>
 
-      <h2>Backup</h2>
+      <h2>Backup and import</h2>
       <p className="muted">
         All data lives on this device. Nothing is sent off the phone until cloud sync exists.
-        Export a backup file every so often (and before switching phones), then import it to restore.
+        Export a backup, or import a JSON file of seasons, teams, pitchers, games, pitches, earned runs, and person links.
+        Import replaces what is on this device. It does not merge.
       </p>
       <div className="row">
         <button className="primary grow" onClick={doExport}>Export backup</button>
-        <button className="grow" onClick={() => fileInput.current?.click()}>Import backup</button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json,.json"
-          style={{ display: 'none' }}
-          onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])}
-        />
+        <ImportFromFile className="grow" />
       </div>
 
       <h2>Opening splash</h2>

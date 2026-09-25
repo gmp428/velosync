@@ -1079,10 +1079,94 @@ export async function exportAll(): Promise<BackupFile> {
   }
 }
 
-export async function importAll(data: BackupFile): Promise<void> {
-  if (data.app !== 'pitch-tracker' || !Array.isArray(data.pitches)) {
-    throw new Error('This file does not look like a VeloSync backup.')
+const IMPORT_LISTS = ['opponents', 'batters', 'pitchers', 'pitchTypes', 'games', 'atBats', 'pitches'] as const
+
+function requireList(value: unknown, label: string): unknown[] {
+  if (!Array.isArray(value)) throw new Error(`This file needs a list of ${label}.`)
+  return value
+}
+
+function requireIds(rows: unknown[], label: string) {
+  for (const row of rows) {
+    const id = (row as { id?: unknown } | null)?.id
+    if (typeof id !== 'string' || id.length === 0) throw new Error(`Each ${label} row needs a string id.`)
   }
+}
+
+function optionalList(value: unknown, label: string): unknown[] | undefined {
+  if (value == null) return undefined
+  if (!Array.isArray(value)) throw new Error(`${label} must be a list.`)
+  return value
+}
+
+/**
+ * Check a JSON value before it replaces the database. Old backups (version
+ * 2–5) still load. Version 6 is the shape to author by hand: seasons, teams,
+ * pitchers, games, pitches, earned runs, and person links. See the README.
+ */
+export function parseImportFile(data: unknown): BackupFile {
+  if (!data || typeof data !== 'object') throw new Error('This file is not a VeloSync JSON import.')
+  const file = data as Partial<BackupFile>
+  if (file.app !== 'pitch-tracker') {
+    throw new Error('This file does not look like a VeloSync import. It needs "app": "pitch-tracker".')
+  }
+  if (typeof file.version !== 'number') throw new Error('This file needs a version number. Use 6.')
+  for (const key of IMPORT_LISTS) requireList(file[key], key)
+  requireIds(file.opponents as unknown[], 'team')
+  requireIds(file.batters as unknown[], 'batter')
+  requireIds(file.pitchers as unknown[], 'pitcher')
+  requireIds(file.pitchTypes as unknown[], 'pitch type')
+  requireIds(file.games as unknown[], 'game')
+  requireIds(file.atBats as unknown[], 'at-bat')
+  requireIds(file.pitches as unknown[], 'pitch')
+
+  const seasons = optionalList(file.seasons, 'seasons')
+  if (seasons) {
+    requireIds(seasons, 'season')
+    let active = 0
+    for (const row of seasons) {
+      const season = row as Partial<Season>
+      if (typeof season.name !== 'string' || season.name.trim() === '') throw new Error('Each season needs a name.')
+      if (!isEraInnings(season.eraInnings)) throw new Error(`Season “${season.name}” needs eraInnings of 6, 7, or 9.`)
+      if (typeof season.active !== 'boolean') throw new Error(`Season “${season.name}” needs active true or false.`)
+      if (typeof season.createdAt !== 'number' || typeof season.updatedAt !== 'number') {
+        throw new Error(`Season “${season.name}” needs createdAt and updatedAt as millisecond timestamps.`)
+      }
+      if (season.active) active++
+    }
+    if (active > 1) throw new Error('Only one season can be marked active.')
+  }
+
+  for (const [list, label] of [[file.batters, 'batter'], [file.pitchers, 'pitcher']] as const) {
+    for (const row of list as Array<{ linkGroupId?: unknown }>) {
+      if (row.linkGroupId != null && typeof row.linkGroupId !== 'string') {
+        throw new Error(`A ${label} linkGroupId must be a string when it is set.`)
+      }
+    }
+  }
+
+  const earnedRuns = optionalList(file.earnedRuns, 'earnedRuns')
+  if (earnedRuns) {
+    requireIds(earnedRuns, 'earned run')
+    for (const row of earnedRuns) {
+      const er = row as Partial<EarnedRun>
+      if (typeof er.gameId !== 'string' || typeof er.pitcherId !== 'string') {
+        throw new Error('Each earned run needs a gameId and a pitcherId.')
+      }
+      if (typeof er.runs !== 'number' || typeof er.inning !== 'number' || (er.half !== 'top' && er.half !== 'bottom')) {
+        throw new Error('Each earned run needs inning, half ("top" or "bottom"), and a numeric runs count.')
+      }
+    }
+  }
+  optionalList(file.substitutions, 'substitutions')
+  optionalList(file.settings, 'settings')
+  if (file.substitutions) requireIds(file.substitutions, 'substitution')
+
+  return file as BackupFile
+}
+
+export async function importAll(data: BackupFile): Promise<void> {
+  const file = parseImportFile(data)
   await db.transaction('rw', [db.seasons, db.opponents, db.batters, db.pitchers, db.pitchTypes, db.games, db.atBats, db.pitches, db.settings, db.substitutions, db.earnedRuns], async () => {
     await Promise.all([
       db.seasons.clear(),
@@ -1090,21 +1174,21 @@ export async function importAll(data: BackupFile): Promise<void> {
       db.pitchTypes.clear(), db.games.clear(), db.atBats.clear(), db.pitches.clear(),
       db.settings.clear(), db.substitutions.clear(), db.earnedRuns.clear(),
     ])
-    if (data.seasons?.length) await db.seasons.bulkAdd(data.seasons.map(hydrateSync))
-    await db.opponents.bulkAdd(data.opponents.map(hydrateSync))
-    await db.batters.bulkAdd(hydrateBatterSortIndex(data.batters.map(hydrateSync)))
-    await db.pitchers.bulkAdd(data.pitchers.map(hydrateSync))
-    await db.pitchTypes.bulkAdd(data.pitchTypes.map(hydrateSync))
-    await db.games.bulkAdd(data.games.map(hydrateSync))
-    await db.atBats.bulkAdd(data.atBats.map(hydrateSync))
-    await db.pitches.bulkAdd(data.pitches.map(hydrateSync))
+    if (file.seasons?.length) await db.seasons.bulkAdd(file.seasons.map(hydrateSync))
+    await db.opponents.bulkAdd(file.opponents.map(hydrateSync))
+    await db.batters.bulkAdd(hydrateBatterSortIndex(file.batters.map(hydrateSync)))
+    await db.pitchers.bulkAdd(file.pitchers.map(hydrateSync))
+    await db.pitchTypes.bulkAdd(file.pitchTypes.map(hydrateSync))
+    await db.games.bulkAdd(file.games.map(hydrateSync))
+    await db.atBats.bulkAdd(file.atBats.map(hydrateSync))
+    await db.pitches.bulkAdd(file.pitches.map(hydrateSync))
     // Older backups predate settings — restore the row if present, else leave
     // the store empty so getSettings() falls back to the default.
-    if (data.settings?.length) await db.settings.bulkAdd(data.settings)
+    if (file.settings?.length) await db.settings.bulkAdd(file.settings)
     // Older backups predate substitutions — same fallback.
-    if (data.substitutions?.length) await db.substitutions.bulkAdd(data.substitutions.map(hydrateSync))
+    if (file.substitutions?.length) await db.substitutions.bulkAdd(file.substitutions.map(hydrateSync))
     // Older backups predate earned-runs capture — same fallback.
-    if (data.earnedRuns?.length) await db.earnedRuns.bulkAdd(data.earnedRuns.map(hydrateSync))
+    if (file.earnedRuns?.length) await db.earnedRuns.bulkAdd(file.earnedRuns.map(hydrateSync))
   })
 }
 

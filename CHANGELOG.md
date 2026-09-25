@@ -10,7 +10,7 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 - **Seasons.** Teams, pitchers, and games belong to a season (name, optional dates, one active season). Creating or switching seasons does not archive the others, and a new season starts empty until you add or import into it. The first time you open this version, you name the season that keeps everything already on the device.
 - **ERA** on the pitcher report: `(earned runs × 6, 7, or 9) ÷ IP`. The innings factor is chosen when the season is created (nothing pre-selected) and can be changed later. IP is outs ÷ 3, shown as baseball thirds (`0.1`, `0.2`, `1.0`). Headline range is this season, last 2, last 3, or overall; combined ranges use the active season’s factor, and the season-by-season list uses each season’s own factor.
 - **Import from another season** for the pitcher staff and for opposing-team rosters (whole team or chosen players), with jersey numbers you can edit before saving. Import links the new roster entry to the same person. Unlink from the pitcher screen if that was a mistake.
-- **Demo data.** Settings, and the first-season screen, can load a fixed sample: 2025 Fall plus an active 2026 Spring, three pitchers linked across both, opposing lineups, and fully logged games with earned runs. Loading it replaces seasons, teams, pitchers, games, and pitch types on this device — it does not merge — and loading it again resets to the same sample.
+- **Import from file.** Settings, and the first-season screen, can replace everything on the device with a JSON file (seasons, teams, pitchers, games, pitches, earned runs, and person links). The file shape is documented in the README. Import does not merge.
 
 ## [0.16.0] — 2026-09-24
 
