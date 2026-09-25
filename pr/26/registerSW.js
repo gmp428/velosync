@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/velosync/pr/26/sw.js', { scope: '/velosync/pr/26/' })})}
