@@ -1,10 +1,16 @@
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { ActiveSeasonNote, NoActiveSeason } from '../components/SeasonChrome'
 import { db } from '../db'
 import { orderGamesNewestFirst } from '../lib/stats'
+import { useSeasonList } from '../lib/useSeason'
 
 export default function Games() {
-  const games = useLiveQuery(() => db.games.toArray(), [])
+  const { seasons, active } = useSeasonList()
+  const games = useLiveQuery(async () => {
+    if (!active) return []
+    return db.games.where('seasonId').equals(active.id).toArray()
+  }, [active?.id])
   const opponents = useLiveQuery(() => db.opponents.toArray(), [])
   const pitchCounts = useLiveQuery(async () => {
     const counts = new Map<string, number>()
@@ -13,7 +19,7 @@ export default function Games() {
     return counts
   }, [])
 
-  if (!games || !opponents || !pitchCounts) return null
+  if (!seasons || !games || !opponents || !pitchCounts) return null
 
   const ordered = orderGamesNewestFirst(games)
     .map((gid) => games.find((g) => g.id === gid)!)
@@ -21,7 +27,8 @@ export default function Games() {
   return (
     <main>
       <h1>Games</h1>
-      {ordered.length === 0 && <p className="empty">No games yet. Start one from the home screen.</p>}
+      {active ? <ActiveSeasonNote season={active} /> : <NoActiveSeason />}
+      {active && ordered.length === 0 && <p className="empty">No games in this season yet. Start one from the home screen.</p>}
       <div className="list">
         {ordered.map((g) => (
           <Link

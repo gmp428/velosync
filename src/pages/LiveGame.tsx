@@ -1041,7 +1041,9 @@ export default function LiveGame() {
                     setShowChangePitcher(false)
                   }}
                 >
-                  {pitchers.map((p) => (
+                  {pitchers
+                    .filter((p) => !game.seasonId || p.seasonId === game.seasonId || p.id === game.currentPitcherId)
+                    .map((p) => (
                     <option key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ''}{displayName(p)}</option>
                   ))}
                 </select>

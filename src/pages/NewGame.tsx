@@ -1,24 +1,31 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, defaultLineup, displayName, newId, now, pendingSync } from '../db'
+import { ActiveSeasonNote, NoActiveSeason } from '../components/SeasonChrome'
+import { db, defaultLineup, displayName, newId, now, pendingSync, type Pitcher } from '../db'
+import { useSeasonList } from '../lib/useSeason'
 
 export default function NewGame() {
   const navigate = useNavigate()
-  const opponents = useLiveQuery(
-    () => db.opponents.toArray().then((list) => list.sort((a, b) => a.name.localeCompare(b.name))),
-    []
-  )
-  const pitchers = useLiveQuery(() => db.pitchers.toArray(), [])
+  const { seasons, active } = useSeasonList()
+  const opponents = useLiveQuery(async () => {
+    if (!active) return []
+    const list = await db.opponents.where('seasonId').equals(active.id).toArray()
+    return list.sort((a, b) => a.name.localeCompare(b.name))
+  }, [active?.id])
+  const pitchers = useLiveQuery(async (): Promise<Pitcher[]> => {
+    if (!active) return []
+    return db.pitchers.where('seasonId').equals(active.id).toArray()
+  }, [active?.id])
   const [opponentId, setOpponentId] = useState<string | null>(null)
   const [pitcherId, setPitcherId] = useState<string | null>(null)
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [homeAway, setHomeAway] = useState<'home' | 'away' | null>(null)
 
-  if (!opponents || !pitchers) return null
+  if (!seasons || !opponents || !pitchers) return null
 
   const start = async () => {
-    if (opponentId === null || pitcherId === null || homeAway === null) return
+    if (!active || opponentId === null || pitcherId === null || homeAway === null) return
     const gameId = newId()
     const lineup = await defaultLineup(opponentId)
     // Home team pitches first (the opponent bats top); away team bats first
@@ -27,6 +34,7 @@ export default function NewGame() {
     await db.games.add({
       id: gameId,
       opponentId,
+      seasonId: active.id,
       date,
       status: 'active',
       currentPitcherId: pitcherId,
@@ -43,6 +51,7 @@ export default function NewGame() {
   return (
     <main>
       <h1>Start a game</h1>
+      {active ? <ActiveSeasonNote season={active} /> : <NoActiveSeason />}
 
       <h2>Home or away?</h2>
       <p className="muted">Sets who bats first — home pitches first, away bats first.</p>
@@ -56,7 +65,7 @@ export default function NewGame() {
       </div>
 
       <h2>Opponent</h2>
-      {opponents.length === 0 && (
+      {active && opponents.length === 0 && (
         <p className="empty">No teams yet — <Link to="/">add one on the home screen</Link> first.</p>
       )}
       <div className="chips">
@@ -68,7 +77,7 @@ export default function NewGame() {
       </div>
 
       <h2>Starting pitcher</h2>
-      {pitchers.length === 0 && (
+      {active && pitchers.length === 0 && (
         <p className="empty">No pitchers yet — <Link to="/pitchers">add your staff</Link> first.</p>
       )}
       <div className="chips">
@@ -85,7 +94,7 @@ export default function NewGame() {
       <button
         className="primary"
         style={{ width: '100%', marginTop: 16 }}
-        disabled={opponentId === null || pitcherId === null || homeAway === null}
+        disabled={!active || opponentId === null || pitcherId === null || homeAway === null}
         onClick={start}
       >
         Start game

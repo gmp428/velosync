@@ -1,10 +1,14 @@
-import { useRef, useState } from 'react'
+import { useState, useRef } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { introEnabled, setIntroEnabled } from '../lib/intro'
+import { SeasonForm } from '../components/SeasonForm'
 import {
-  CAPTURE_PRESETS, LIVE_CAPTURE_FLAGS, db, exportAll, getSettings, importAll, newId, now, pendingSync, saveSettings,
-  type BackupFile, type CaptureFlags,
+  CAPTURE_PRESETS, LIVE_CAPTURE_FLAGS, assignUnscopedToSeason, countUnscopedSeasonRows, createSeason, db,
+  deleteSeasonIfEmpty, exportAll, getSettings, importAll, newId, now, pendingSync, saveSettings, setActiveSeason,
+  updateSeason,
+  type BackupFile, type CaptureFlags, type Season,
 } from '../db'
+import { formatSeasonDates, orderSeasons, pickActiveSeason } from '../lib/seasons'
+import { introEnabled, setIntroEnabled } from '../lib/intro'
 
 const PRESETS: Array<{ key: 'quick' | 'standard' | 'detailed'; label: string; blurb: string }> = [
   { key: 'quick', label: 'Quick', blurb: 'Fewest taps — pitch, spot, ball/strike/foul, out or hit.' },
@@ -24,6 +28,11 @@ const CAPTURE_LABELS: Array<{ key: keyof CaptureFlags; label: string; help: stri
 export default function Settings() {
   const pitchTypes = useLiveQuery(() => db.pitchTypes.toArray(), [])
   const settings = useLiveQuery(() => getSettings(), [])
+  const seasons = useLiveQuery(() => db.seasons.toArray(), [])
+  const games = useLiveQuery(() => db.games.toArray(), [])
+  const unscoped = useLiveQuery(() => countUnscopedSeasonRows(), [])
+  const [editingSeasonId, setEditingSeasonId] = useState<string | null>(null)
+  const [createKey, setCreateKey] = useState(0)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [newName, setNewName] = useState('')
   const [introOn, setIntroOn] = useState(() => introEnabled())
@@ -83,11 +92,95 @@ export default function Settings() {
     }
   }
 
-  if (!pitchTypes || !settings) return null
+  if (!pitchTypes || !settings || !seasons || !games || unscoped === undefined) return null
+
+  const active = pickActiveSeason(seasons)
+  const ordered = [...orderSeasons(seasons, games)].reverse()
+
+  const removeSeason = async (season: Season) => {
+    if (!confirm(`Delete “${season.name}”? Only empty seasons can be deleted.`)) return
+    const ok = await deleteSeasonIfEmpty(season.id)
+    if (!ok) alert('This season still has teams, pitchers, or games, so it stays.')
+  }
 
   return (
     <main>
       <h1>Settings</h1>
+
+      <h2>Seasons</h2>
+      <p className="muted">
+        Teams, pitchers, and games belong to a season. One season is active — you switch it here.
+        Creating or activating a season does not archive the others, and a new season starts empty until you add or import into it.
+      </p>
+      {active ? (
+        <p className="muted">Active now: <strong style={{ color: 'var(--text)' }}>{active.name}</strong> · {active.eraInnings}-inning ERA</p>
+      ) : (
+        <p className="warning">No season is active. Set one below to work in it.</p>
+      )}
+      {unscoped > 0 && active && (
+        <div className="card stack">
+          <p style={{ margin: 0 }}>
+            {unscoped} team, pitcher, or game {unscoped === 1 ? 'record is' : 'records are'} not in a season yet.
+          </p>
+          <button type="button" className="primary" onClick={() => assignUnscopedToSeason(active.id)}>
+            Put them in {active.name}
+          </button>
+        </div>
+      )}
+      <div className="list">
+        {ordered.map((season) => (
+          <div key={season.id} className="card stack" style={{ margin: 0 }}>
+            {editingSeasonId === season.id ? (
+              <SeasonForm
+                key={season.updatedAt}
+                initialName={season.name}
+                initialStart={season.startDate ?? ''}
+                initialEnd={season.endDate ?? ''}
+                initialEra={season.eraInnings}
+                submitLabel="Save season"
+                onCancel={() => setEditingSeasonId(null)}
+                onSubmit={async (value) => {
+                  await updateSeason(season.id, value)
+                  setEditingSeasonId(null)
+                }}
+              />
+            ) : (
+              <>
+                <div className="row spread">
+                  <strong>{season.name}</strong>
+                  {season.active && <span className="pill">Active</span>}
+                </div>
+                <div className="muted">
+                  {formatSeasonDates(season)} · {season.eraInnings}-inning ERA
+                </div>
+                <div className="row">
+                  {!season.active && (
+                    <button type="button" className="primary small" onClick={() => setActiveSeason(season.id)}>
+                      Set active
+                    </button>
+                  )}
+                  <button type="button" className="small" onClick={() => setEditingSeasonId(season.id)}>Edit</button>
+                  <button type="button" className="small danger" onClick={() => removeSeason(season)}>Delete</button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <h3>New season</h3>
+      <p className="muted">Starts empty. Import last season’s teams and pitchers after you switch to it, or add them by hand.</p>
+      <div className="card">
+        <SeasonForm
+          key={createKey}
+          showMakeActive
+          submitLabel="Create season"
+          onSubmit={async (value) => {
+            await createSeason(value)
+            setCreateKey((k) => k + 1)
+          }}
+        />
+      </div>
 
       <h2>Logging detail</h2>
       <p className="muted">How much to capture per pitch. Keep it quick, or opt into more detail.</p>
