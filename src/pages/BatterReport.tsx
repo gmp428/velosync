@@ -293,7 +293,6 @@ export default function BatterReport() {
               const inningLabel = ab.inning
                 ? `${(g?.half ?? 'top') === 'top' ? 'Top' : 'Bot'} ${ab.inning} · `
                 : ''
-              const teamLabel = linkedBattersInfo.length > 1 ? opponentNameByBatterId.get(ab.batterId) : null
               return (
                 <div key={ab.id}>
                   <button
@@ -303,7 +302,7 @@ export default function BatterReport() {
                   >
                     <span>{outcomeLabel(ab.outcome!)}</span>
                     <span className="muted">
-                      vs {pitcherName(ab.pitcherId)}{teamLabel ? ` (${teamLabel})` : ''}
+                      vs {pitcherName(ab.pitcherId)}
                     </span>
                     <span className="chev">
                       {inningLabel}{g?.date ?? ''} {open ? '▾' : '▸'}
