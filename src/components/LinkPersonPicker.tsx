@@ -11,22 +11,35 @@ import { orderSeasons } from '../lib/seasons'
 import { useSeasonList } from '../lib/useSeason'
 
 /**
- * Shared person picker for pitcher Link and batter cross-team link.
- * Starts on a season (the active one when that season has someone to link),
- * then lists only that season. Batters drill into teams. A name box filters
- * first and/or last name as the coach types.
+ * Shared person picker for pitcher Link, batter cross-team link, and
+ * import-from-another-season. Starts on a season (the active one when that
+ * season has someone to show), then lists only that season. Batters drill
+ * into teams. A name box filters first and/or last name as the coach types.
+ * Pass `selection` to check several people instead of picking one.
  */
 export default function LinkPersonPicker({
   mode,
   people,
   commitLabel,
   onSelect,
+  excludeSeasonIds,
+  onSeasonChange,
+  selection,
+  variant = 'link',
 }: {
   mode: 'pitcher' | 'batter'
   people: LinkPickPerson[]
-  /** When set, each person row gets this button. Otherwise the row itself picks. */
+  /** When set, each person row gets this button. Otherwise the row itself picks. Ignored when `selection` is set. */
   commitLabel?: string
-  onSelect: (personId: string) => void
+  onSelect?: (personId: string) => void
+  /** Seasons omitted from the dropdown (the season being imported into). */
+  excludeSeasonIds?: readonly string[]
+  /** Fired only when the coach changes the season, so the parent can drop a multi-select. */
+  onSeasonChange?: (seasonId: string) => void
+  /** Checkbox multi-select. The parent owns the set so it survives search and team changes. */
+  selection?: { selected: ReadonlySet<string>; onToggle: (personId: string) => void }
+  /** Empty-state wording. Import is not a link action. */
+  variant?: 'link' | 'import'
 }) {
   const { seasons, active } = useSeasonList()
   const games = useLiveQuery(() => db.games.toArray(), [])
@@ -39,10 +52,12 @@ export default function LinkPersonPicker({
   const groupByTeam = mode === 'batter'
   const includeUnassignedStaff = mode === 'pitcher'
 
-  const ordered = useMemo(
-    () => (seasons && games ? [...orderSeasons(seasons, games)].reverse() : []),
-    [seasons, games],
-  )
+  const excludeKey = excludeSeasonIds?.join('\0') ?? ''
+  const ordered = useMemo(() => {
+    if (!seasons || !games) return []
+    const exclude = new Set(excludeKey ? excludeKey.split('\0') : [])
+    return [...orderSeasons(seasons, games)].reverse().filter((season) => !exclude.has(season.id))
+  }, [seasons, games, excludeKey])
 
   const hasSeasons = ordered.length > 0
   const selectedSeasonId = !hasSeasons
@@ -73,9 +88,18 @@ export default function LinkPersonPicker({
   if (!seasons || !games) return null
 
   const chooseSeason = (id: string) => {
+    if (id === (selectedSeasonId ?? '')) return
     setSeasonOverride(id)
     setTeamId(null)
+    onSeasonChange?.(id)
   }
+
+  const emptyTeams = variant === 'import' ? 'No teams in this season.' : 'No other teams in this season.'
+  const emptyPeople = searching
+    ? 'No players match that name.'
+    : groupByTeam
+      ? (variant === 'import' ? 'No players on this team.' : 'No linkable players on this team.')
+      : 'No pitchers in this season.'
 
   const personLabel = (person: LinkPickPerson) =>
     `${person.number ? `#${person.number} ` : ''}${fullName(person)}`
@@ -115,7 +139,7 @@ export default function LinkPersonPicker({
 
       {showingTeams ? (
         teams.length === 0 ? (
-          <p className="empty">No other teams in this season.</p>
+          <p className="empty">{emptyTeams}</p>
         ) : (
           <div className="list" style={{ maxHeight: 280, overflowY: 'auto' }}>
             {teams.map((team) => (
@@ -141,13 +165,7 @@ export default function LinkPersonPicker({
             </div>
           )}
           {visiblePeople.length === 0 ? (
-            <p className="empty">
-              {searching
-                ? 'No players match that name.'
-                : groupByTeam
-                  ? 'No linkable players on this team.'
-                  : 'No pitchers in this season.'}
-            </p>
+            <p className="empty">{emptyPeople}</p>
           ) : (
             <div className="list" style={{ maxHeight: 280, overflowY: 'auto' }}>
               {visiblePeople.map((person) => {
@@ -155,6 +173,23 @@ export default function LinkPersonPicker({
                 const teamHint = groupByTeam && !openTeam ? person.teamName : undefined
                 const staffHint = mixedStaff && !person.seasonId ? 'All seasons' : undefined
                 const detail = [teamHint, staffHint].filter(Boolean).join(' · ')
+                if (selection) {
+                  return (
+                    <label key={person.id} className="list-item" style={{ width: '100%', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={selection.selected.has(person.id)}
+                        onChange={() => selection.onToggle(person.id)}
+                        aria-label={`Select ${label}`}
+                        style={{ width: 22, height: 22, minHeight: 22, flexShrink: 0, accentColor: 'var(--accent-dark)' }}
+                      />
+                      <span className="grow">
+                        {label}
+                        {detail && <span className="muted"> · {detail}</span>}
+                      </span>
+                    </label>
+                  )
+                }
                 if (commitLabel) {
                   return (
                     <div key={person.id} className="list-item">
@@ -162,7 +197,7 @@ export default function LinkPersonPicker({
                         {label}
                         {detail && <span className="muted"> · {detail}</span>}
                       </span>
-                      <button type="button" className="primary" onClick={() => onSelect(person.id)}>
+                      <button type="button" className="primary" onClick={() => onSelect?.(person.id)}>
                         {commitLabel}
                       </button>
                     </div>
@@ -174,7 +209,7 @@ export default function LinkPersonPicker({
                     type="button"
                     className="list-item"
                     style={{ width: '100%', textAlign: 'left' }}
-                    onClick={() => onSelect(person.id)}
+                    onClick={() => onSelect?.(person.id)}
                   >
                     <span className="grow">
                       {label}

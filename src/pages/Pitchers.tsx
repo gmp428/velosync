@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
+import AddPersonMenu from '../components/AddPersonMenu'
 import { ImportFromSeason } from '../components/ImportFromSeason'
 import LinkPersonPicker from '../components/LinkPersonPicker'
 import { ActiveSeasonNote, NoActiveSeason } from '../components/SeasonChrome'
@@ -14,7 +15,10 @@ export default function Pitchers() {
   const pitchTypes = useLiveQuery(() => db.pitchTypes.toArray(), [])
 
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [showAddMenu, setShowAddMenu] = useState(false)
+  const [showNewPitcher, setShowNewPitcher] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const newFormRef = useRef<HTMLFormElement>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [number, setNumber] = useState('')
@@ -36,6 +40,21 @@ export default function Pitchers() {
     setNotes('')
     setArsenal(pitchTypes?.map((t) => t.id) ?? null)
   }
+
+  const openNewPitcher = () => {
+    resetForm()
+    setShowAddMenu(false)
+    setShowNewPitcher(true)
+  }
+
+  const closePitcherForm = () => {
+    resetForm()
+    setShowNewPitcher(false)
+  }
+
+  useEffect(() => {
+    if (showNewPitcher) newFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [showNewPitcher])
 
   const toggleArsenal = (id: string) => {
     setArsenal((a) => {
@@ -70,6 +89,8 @@ export default function Pitchers() {
   const startEdit = (pitcherId: string) => {
     const p = pitchers?.find((x) => x.id === pitcherId)
     if (!p) return
+    setShowNewPitcher(false)
+    setShowAddMenu(false)
     setEditingId(pitcherId)
     setFirstName(p.firstName ?? p.name ?? '')
     setLastName(p.lastName ?? '')
@@ -141,15 +162,30 @@ export default function Pitchers() {
         ))}
       </div>
 
-      {active && (
-        <button type="button" onClick={() => setShowImport(true)}>Import pitchers from another season</button>
+      {active && editingId === null && !showNewPitcher && (
+        <button type="button" className="primary" style={{ width: '100%', marginTop: 12 }} onClick={() => setShowAddMenu(true)}>
+          Add pitcher
+        </button>
+      )}
+      {active && showAddMenu && (
+        <AddPersonMenu
+          title="Add pitcher"
+          hint="Add someone new, or bring pitchers over from another season."
+          newLabel="New pitcher"
+          onClose={() => setShowAddMenu(false)}
+          onNew={openNewPitcher}
+          onImport={() => {
+            setShowAddMenu(false)
+            setShowImport(true)
+          }}
+        />
       )}
       {active && showImport && (
         <ImportFromSeason mode={{ kind: 'pitchers', targetSeasonId: active.id }} onClose={() => setShowImport(false)} />
       )}
 
-      {active && <form onSubmit={save} className="card stack">
-        <strong>{editingId !== null ? 'Edit pitcher' : 'Add pitcher'}</strong>
+      {active && (showNewPitcher || editingId !== null) && <form ref={newFormRef} onSubmit={save} className="card stack">
+        <strong>{editingId !== null ? 'Edit pitcher' : 'New pitcher'}</strong>
         <div className="row">
           <div className="grow">
             <label>First name</label>
@@ -228,7 +264,7 @@ export default function Pitchers() {
         )}
         <div className="row">
           <button type="submit" className="primary grow">{editingId !== null ? 'Save changes' : 'Add pitcher'}</button>
-          {editingId !== null && <button type="button" onClick={resetForm}>Cancel</button>}
+          <button type="button" onClick={closePitcherForm}>Cancel</button>
         </div>
       </form>}
     </main>

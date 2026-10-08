@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
+import AddPersonMenu from '../components/AddPersonMenu'
 import { ImportFromSeason } from '../components/ImportFromSeason'
 import LinkPersonPicker from '../components/LinkPersonPicker'
 import { db, displayName, fullName, findLinkSuggestions, GHOST_OUT, newId, now, pendingSync, type Batter, type LinkSuggestion } from '../db'
@@ -75,7 +76,10 @@ export default function Roster() {
   // Simple tap-to-expand toggle for the batting-order section — always
   // starts collapsed (not auto-expanded based on lineup completeness).
   const [showBattingOrder, setShowBattingOrder] = useState(false)
+  const [showAddMenu, setShowAddMenu] = useState(false)
+  const [showNewPlayer, setShowNewPlayer] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const newFormRef = useRef<HTMLFormElement>(null)
 
   // Cross-team player identity: batters/opponents from EVERY team (not just
   // this one), needed to check for likely matches when a name is saved.
@@ -109,6 +113,23 @@ export default function Roster() {
     setNumber('')
     setBats('R')
   }
+
+  const openNewPlayer = () => {
+    resetForm()
+    setShowQuickAdd(false)
+    setShowAddMenu(false)
+    setShowNewPlayer(true)
+  }
+
+  const cancelNewPlayer = () => {
+    resetForm()
+    setShowQuickAdd(false)
+    setShowNewPlayer(false)
+  }
+
+  useEffect(() => {
+    if (showNewPlayer) newFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [showNewPlayer])
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -236,6 +257,8 @@ export default function Roster() {
     const b = batters?.find((x) => x.id === batterId)
     if (!b) return
     setShowQuickAdd(false)
+    setShowNewPlayer(false)
+    setShowAddMenu(false)
     setEditingId(batterId)
     setFirstName(b.firstName ?? b.name ?? '')
     setLastName(b.lastName ?? '')
@@ -412,46 +435,66 @@ export default function Roster() {
       </div>
 
 
-      {opponent?.seasonId && editingId === null && (
-        <button type="button" onClick={() => setShowImport(true)}>Import players from another season</button>
+      {editingId === null && !showNewPlayer && (
+        <button type="button" className="primary" style={{ width: '100%', marginTop: 12 }} onClick={() => setShowAddMenu(true)}>
+          Add player
+        </button>
       )}
-      {showImport && opponent?.seasonId && (
+      {showAddMenu && (
+        <AddPersonMenu
+          title="Add player"
+          hint="Add someone new, or bring players over from another season."
+          newLabel="New player"
+          onClose={() => setShowAddMenu(false)}
+          onNew={openNewPlayer}
+          onImport={() => {
+            setShowAddMenu(false)
+            setShowImport(true)
+          }}
+          importDisabled={!opponent.seasonId}
+          importDisabledReason="This team isn’t in a season yet."
+        />
+      )}
+      {showImport && opponent.seasonId && (
         <ImportFromSeason
           mode={{ kind: 'onto-team', targetSeasonId: opponent.seasonId, targetOpponentId: opponentId }}
           onClose={() => setShowImport(false)}
         />
       )}
 
-      <form onSubmit={save} className="card stack" style={{ display: editingId !== null ? 'none' : undefined }}>
-        <strong>Add batter</strong>
-        <div className="row">
-          <div className="grow">
-            <label>First name</label>
-            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First" />
+      {showNewPlayer && editingId === null && (
+        <form ref={newFormRef} onSubmit={save} className="card stack">
+          <strong>New player</strong>
+          <div className="row">
+            <div className="grow">
+              <label>First name</label>
+              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First" />
+            </div>
+            <div className="grow">
+              <label>Last name</label>
+              <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last" />
+            </div>
+            <div style={{ width: 64 }}>
+              <label>#</label>
+              <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="12" inputMode="numeric" />
+            </div>
           </div>
-          <div className="grow">
-            <label>Last name</label>
-            <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last" />
+          <div className="row">
+            <label style={{ margin: 0 }}>Bats:</label>
+            <button type="button" className={`chip ${bats === 'R' ? 'on' : ''}`} onClick={() => setBats('R')}>Right</button>
+            <button type="button" className={`chip ${bats === 'L' ? 'on' : ''}`} onClick={() => setBats('L')}>Left</button>
           </div>
-          <div style={{ width: 64 }}>
-            <label>#</label>
-            <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="12" inputMode="numeric" />
+          <div className="row">
+            <button type="submit" className="primary grow">Add player</button>
+            <button type="button" onClick={cancelNewPlayer}>Cancel</button>
           </div>
-        </div>
-        <div className="row">
-          <label style={{ margin: 0 }}>Bats:</label>
-          <button type="button" className={`chip ${bats === 'R' ? 'on' : ''}`} onClick={() => setBats('R')}>Right</button>
-          <button type="button" className={`chip ${bats === 'L' ? 'on' : ''}`} onClick={() => setBats('L')}>Left</button>
-        </div>
-        <div className="row">
-          <button type="submit" className="primary grow">Add batter</button>
           <button type="button" className="small" onClick={() => setShowQuickAdd((v) => !v)}>
             {showQuickAdd ? 'Close quick add' : '⚡ Quick add by #s'}
           </button>
-        </div>
-      </form>
+        </form>
+      )}
 
-      {showQuickAdd && editingId === null && (
+      {showQuickAdd && showNewPlayer && editingId === null && (
         <div className="modal-overlay" onClick={() => setShowQuickAdd(false)}>
           <div className="card stack" onClick={(e) => e.stopPropagation()}>
             <div className="row spread">
