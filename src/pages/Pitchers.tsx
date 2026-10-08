@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ImportFromSeason } from '../components/ImportFromSeason'
+import LinkPersonPicker from '../components/LinkPersonPicker'
 import { ActiveSeasonNote, NoActiveSeason } from '../components/SeasonChrome'
 import { db, displayName, fullName, linkPitcherRecords, newId, now, pendingSync, pitcherArsenal, pitcherOnStaff, unlinkPitcherRecord } from '../db'
 import { useSeasonList } from '../lib/useSeason'
@@ -14,7 +15,6 @@ export default function Pitchers() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showImport, setShowImport] = useState(false)
-  const [linkTarget, setLinkTarget] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [number, setNumber] = useState('')
@@ -35,7 +35,6 @@ export default function Pitchers() {
     setThrows('R')
     setNotes('')
     setArsenal(pitchTypes?.map((t) => t.id) ?? null)
-    setLinkTarget('')
   }
 
   const toggleArsenal = (id: string) => {
@@ -210,26 +209,20 @@ export default function Pitchers() {
               </button>
             )}
             {linkCandidates.length > 0 && (
-              <div className="row">
-                <select className="grow" value={linkTarget} onChange={(e) => setLinkTarget(e.target.value)} aria-label="Player to link">
-                  <option value="">Link to an existing player…</option>
-                  {linkCandidates.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.number ? `#${p.number} ` : ''}{fullName(p)} — {seasonName(p.seasonId)}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!linkTarget}
-                  onClick={async () => {
-                    await linkPitcherRecords(editing.id, linkTarget)
-                    setLinkTarget('')
-                  }}
-                >
-                  Link
-                </button>
-              </div>
+              <LinkPersonPicker
+                key={editing.id}
+                mode="pitcher"
+                commitLabel="Link"
+                people={linkCandidates.map((p) => ({
+                  id: p.id,
+                  firstName: p.firstName,
+                  lastName: p.lastName,
+                  name: p.name,
+                  number: p.number,
+                  seasonId: p.seasonId,
+                }))}
+                onSelect={(id) => { void linkPitcherRecords(editing.id, id) }}
+              />
             )}
           </div>
         )}

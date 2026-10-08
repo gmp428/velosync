@@ -4,6 +4,9 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+### Changed
+- Linking a pitcher or a batter starts with a season, then only that season’s teams or players, with a first/last name search. Link and unlink still share the same `linkGroupId`.
+
 ## [0.17.0] — 2026-09-25
 
 ### Added
