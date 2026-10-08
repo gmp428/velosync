@@ -4,7 +4,13 @@ All notable changes to VeloSync are recorded here, in reverse-chronological orde
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-10-08
+
+### Added
+- **Add player / Add pitcher.** The team roster and the Pitchers tab each have one Add button. New opens a blank form. Import from another season picks a season (then a team, on a roster), searches by first or last name, and checks several people at once. Jersey numbers are confirmed the same way as before, and each imported person stays linked by `linkGroupId`.
+
 ### Changed
+- The always-open add form and the separate “Import from another season” button are no longer on those two screens. Adding or importing a whole opposing team from the Teams tab is unchanged.
 - Linking a pitcher or a batter starts with a season, then only that season’s teams or players, with a first/last name search. Link and unlink still share the same `linkGroupId`.
 
 ## [0.17.0] — 2026-09-25

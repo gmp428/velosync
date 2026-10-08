@@ -4,6 +4,8 @@ import {
   db, displayName, importBattersToTeam, importPitchersToSeason,
   type Batter, type Pitcher,
 } from '../db'
+import LinkPersonPicker from './LinkPersonPicker'
+import type { LinkPickPerson } from '../lib/linkPicker'
 import { formatSeasonDates } from '../lib/seasons'
 
 type Mode =
@@ -18,6 +20,30 @@ interface Row {
   number: string
   linkGroupId?: string
   sortIndex: number
+}
+
+function pitcherPerson(p: Pitcher): LinkPickPerson {
+  return {
+    id: p.id,
+    firstName: p.firstName,
+    lastName: p.lastName,
+    name: p.name,
+    number: p.number,
+    seasonId: p.seasonId,
+  }
+}
+
+function batterPerson(b: Batter, seasonId: string, teamName: string): LinkPickPerson {
+  return {
+    id: b.id,
+    firstName: b.firstName,
+    lastName: b.lastName,
+    name: b.name,
+    number: b.number,
+    seasonId,
+    teamId: b.opponentId,
+    teamName,
+  }
 }
 
 function pitcherRow(p: Pitcher): Row {
@@ -68,19 +94,47 @@ export function ImportFromSeason({ mode, onClose }: { mode: Mode; onClose: () =>
     [opponents, sourceSeasonId],
   )
 
-  const rows: Row[] = useMemo(() => {
+  // Pitchers and "onto this team" use the shared season/team/name picker and
+  // can select people from more than one team. The whole-team clone still
+  // lists just the team the coach picked.
+  const catalog = useMemo(() => {
+    const empty = { rows: [] as Row[], people: [] as LinkPickPerson[] }
     if (mode.kind === 'pitchers') {
-      return (pitchers ?? [])
-        .filter((p) => p.seasonId === sourceSeasonId)
+      const list = (pitchers ?? [])
+        .filter((p) => p.seasonId && p.seasonId !== mode.targetSeasonId)
         .sort((a, b) => displayName(a).localeCompare(displayName(b)))
-        .map(pitcherRow)
+      return {
+        rows: list.map(pitcherRow),
+        people: list.map(pitcherPerson),
+      }
     }
-    if (!sourceOpponentId) return []
-    return (batters ?? [])
-      .filter((b) => b.opponentId === sourceOpponentId)
-      .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0))
-      .map(batterRow)
-  }, [mode.kind, pitchers, batters, sourceSeasonId, sourceOpponentId])
+    if (mode.kind === 'onto-team') {
+      const oppById = new Map((opponents ?? []).map((o) => [o.id, o]))
+      const list = (batters ?? []).filter((b) => {
+        const seasonId = oppById.get(b.opponentId)?.seasonId
+        return Boolean(seasonId && seasonId !== mode.targetSeasonId)
+      }).sort((a, b) => displayName(a).localeCompare(displayName(b)))
+      return {
+        rows: list.map(batterRow),
+        people: list.flatMap((b) => {
+          const team = oppById.get(b.opponentId)
+          if (!team?.seasonId) return []
+          return [batterPerson(b, team.seasonId, team.name)]
+        }),
+      }
+    }
+    if (!sourceOpponentId) return empty
+    return {
+      rows: (batters ?? [])
+        .filter((b) => b.opponentId === sourceOpponentId)
+        .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0))
+        .map(batterRow),
+      people: empty.people,
+    }
+  }, [mode.kind, mode.targetSeasonId, pitchers, batters, opponents, sourceOpponentId])
+  const rows = catalog.rows
+  const importPeople = catalog.people
+  const usesPicker = mode.kind === 'pitchers' || mode.kind === 'onto-team'
 
   const ready = Boolean(seasons && opponents && pitchers && batters)
   const title = mode.kind === 'pitchers'
@@ -121,7 +175,8 @@ export function ImportFromSeason({ mode, onClose }: { mode: Mode; onClose: () =>
   }
 
   const goToJerseys = () => {
-    if (selected.size === 0) {
+    const picked = rows.filter((row) => selected.has(row.id))
+    if (picked.length === 0) {
       setError('Select at least one player.')
       return
     }
@@ -130,9 +185,7 @@ export function ImportFromSeason({ mode, onClose }: { mode: Mode; onClose: () =>
       return
     }
     const initial: Record<string, string> = {}
-    for (const row of rows) {
-      if (selected.has(row.id)) initial[row.id] = row.number
-    }
+    for (const row of picked) initial[row.id] = row.number
     setNumbers(initial)
     setError(null)
     setStep('jerseys')
@@ -197,11 +250,39 @@ export function ImportFromSeason({ mode, onClose }: { mode: Mode; onClose: () =>
             There’s no other season to import from yet. Create one in Settings, switch to it, then come back.
           </p>
         ) : step === 'choose' ? (
+          usesPicker ? (
+            <>
+              <p className="muted" style={{ margin: 0 }}>
+                {mode.kind === 'pitchers'
+                  ? 'Pick a season and search by first or last name. Check everyone to add to this staff. Jersey numbers are next, and each pitcher stays linked to the same player.'
+                  : 'Pick a season, open a team, and search by first or last name. Check everyone to add to this roster. Jersey numbers are next, and each player stays linked to the same player.'}
+              </p>
+              <LinkPersonPicker
+                mode={mode.kind === 'pitchers' ? 'pitcher' : 'batter'}
+                people={importPeople}
+                excludeSeasonIds={[mode.targetSeasonId]}
+                variant="import"
+                selection={{ selected, onToggle: toggle }}
+                onSeasonChange={() => {
+                  setSelected(new Set())
+                  setError(null)
+                }}
+              />
+              <div className="row spread">
+                <span className="muted">{selected.size} selected</span>
+                {selected.size > 0 && (
+                  <button type="button" className="small" onClick={() => setSelected(new Set())}>Clear</button>
+                )}
+              </div>
+              {error && <p className="warning" style={{ margin: 0 }}>{error}</p>}
+              <button type="button" className="primary" style={{ width: '100%' }} disabled={selected.size === 0} onClick={goToJerseys}>
+                Review jersey numbers
+              </button>
+            </>
+          ) : (
           <>
             <p className="muted" style={{ margin: 0 }}>
-              {mode.kind === 'pitchers'
-                ? 'Imported pitchers join this season’s staff and stay linked to the same player. Add someone new by hand if they weren’t here last season.'
-                : 'Clone a whole roster or uncheck players to leave them behind. Everyone imported stays linked to the same player.'}
+              Clone a whole roster or uncheck players to leave them behind. Everyone imported stays linked to the same player.
             </p>
             <div>
               <label>From season</label>
@@ -214,7 +295,7 @@ export function ImportFromSeason({ mode, onClose }: { mode: Mode; onClose: () =>
                 ))}
               </select>
             </div>
-            {mode.kind !== 'pitchers' && sourceSeasonId && (
+            {sourceSeasonId && (
               <div>
                 <label>Team</label>
                 {sourceTeams.length === 0 ? (
@@ -235,7 +316,7 @@ export function ImportFromSeason({ mode, onClose }: { mode: Mode; onClose: () =>
                 )}
               </div>
             )}
-            {mode.kind === 'new-team' && sourceOpponentId && (
+            {sourceOpponentId && (
               <div>
                 <label>Team name this season</label>
                 <input value={teamName} onChange={(e) => setTeamName(e.target.value)} />
@@ -246,7 +327,7 @@ export function ImportFromSeason({ mode, onClose }: { mode: Mode; onClose: () =>
                 <div className="row spread">
                   <span className="muted">{selected.size} of {rows.length} selected</span>
                   <button type="button" className="small" onClick={() => selectAll(selected.size !== rows.length)}>
-                    {selected.size === rows.length ? 'Clear' : mode.kind === 'pitchers' ? 'Select all' : 'Entire team'}
+                    {selected.size === rows.length ? 'Clear' : 'Entire team'}
                   </button>
                 </div>
                 <div className="list">
@@ -264,14 +345,12 @@ export function ImportFromSeason({ mode, onClose }: { mode: Mode; onClose: () =>
                 </div>
               </>
             )}
-            {sourceSeasonId && mode.kind === 'pitchers' && rows.length === 0 && (
-              <p className="empty">No pitchers in that season.</p>
-            )}
             {error && <p className="warning" style={{ margin: 0 }}>{error}</p>}
             <button type="button" className="primary" disabled={selected.size === 0} onClick={goToJerseys}>
               Review jersey numbers
             </button>
           </>
+          )
         ) : (
           <>
             <p className="muted" style={{ margin: 0 }}>
